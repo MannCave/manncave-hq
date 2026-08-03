@@ -16,12 +16,14 @@ export function PeptideChain() {
   );
 }
 
-/** Kingdom — crown chevron mark */
+/** KA — stenciled crown over a hazard-stripe bar */
 export function CrownMark() {
   return (
-    <svg className="mch-motif" width="34" height="24" viewBox="0 0 34 24" aria-hidden="true">
-      <path d="M4 18 L4 9 L11 14 L17 5 L23 14 L30 9 L30 18 Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <line x1="4" y1="21" x2="30" y2="21" stroke="currentColor" strokeWidth="1.8" opacity="0.55" />
+    <svg className="mch-motif" width="40" height="27" viewBox="0 0 40 27" aria-hidden="true">
+      <path d="M7 16 L7 8 L14 12.5 L20 4.5 L26 12.5 L33 8 L33 16 Z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+      {[5, 11, 17, 23, 29].map((x) => (
+        <line key={x} x1={x} y1={25} x2={x + 5} y2={20} stroke="currentColor" strokeWidth="3.2" opacity="0.7" />
+      ))}
     </svg>
   );
 }

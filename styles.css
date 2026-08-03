@@ -35,6 +35,8 @@
 [data-accent="violet"] { --mch-accent: var(--mch-violet); }
 [data-accent="ember"] { --mch-accent: var(--mch-ember); }
 [data-accent="ice"] { --mch-accent: var(--mch-ice); }
+[data-accent="gold"] { --mch-accent: var(--mch-gold); }
+[data-accent="forge"] { --mch-accent: var(--mch-forge); }
 
 /* ---- header ---- */
 
@@ -479,7 +481,11 @@
 
 /* ============ Area identity system ============ */
 
-.mch-root { --mch-gold: #d9b44a; }
+.mch-root {
+  --mch-gold: #d9b44a;
+  --mch-forge: #ff7d26;
+  --mch-steel: #9aa3ad;
+}
 
 /* --- banners --- */
 
@@ -516,7 +522,7 @@
 .mch-banner-right { display: flex; align-items: center; gap: 12px; }
 .mch-motif { display: block; }
 
-/* --- WWP: molecular --- */
+/* --- WWP: black & gold molecular --- */
 
 .mch-theme-wwp .mch-banner-kicker,
 .mch-theme-wwp .mch-count,
@@ -524,10 +530,38 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.mch-theme-wwp .mch-card {
+.mch-theme-wwp .mch-banner {
+  border-color: color-mix(in srgb, var(--mch-gold) 40%, transparent);
+  border-top: 2px solid var(--mch-gold);
   background:
-    radial-gradient(140px 90px at 100% 0%, rgba(20, 184, 166, 0.06), transparent 70%),
-    var(--mch-surface);
+    radial-gradient(340px 120px at 0% 0%, rgba(217, 180, 74, 0.13), transparent 70%),
+    linear-gradient(180deg, #0c0b08, #0a0a0d);
+}
+
+.mch-theme-wwp .mch-banner-kicker { color: color-mix(in srgb, var(--mch-gold) 70%, var(--mch-muted)); }
+
+.mch-theme-wwp .mch-banner-name {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #f3dc95, var(--mch-gold) 60%, #a8842e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.mch-theme-wwp .mch-card,
+.mch-theme-wwp.mch-hud-zone .mch-card {
+  border-color: color-mix(in srgb, var(--mch-gold) 22%, transparent);
+  background:
+    radial-gradient(160px 100px at 100% 0%, rgba(217, 180, 74, 0.07), transparent 70%),
+    linear-gradient(180deg, #0e0d0a, #0a0b0f);
+}
+
+.mch-theme-wwp .mch-card-head h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 12.5px;
+  color: color-mix(in srgb, var(--mch-gold) 80%, var(--mch-text));
 }
 
 .mch-node-pulse { animation: mch-node 2.6s ease-in-out infinite; transform-origin: center; }
@@ -536,31 +570,109 @@
   50% { opacity: 0.35; }
 }
 
-/* --- Kingdom: royal athletic --- */
+/* --- KA: grungy industrial --- */
+
+.mch-theme-kingdom {
+  --mch-stencil: Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Black", sans-serif;
+}
 
 .mch-theme-kingdom .mch-banner {
-  border-top: 2px solid var(--mch-gold);
+  position: relative;
+  border-color: rgba(154, 163, 173, 0.28);
+  padding-top: 22px;
+  background:
+    repeating-linear-gradient(98deg, rgba(255, 255, 255, 0.014) 0 3px, transparent 3px 8px),
+    repeating-linear-gradient(-14deg, rgba(0, 0, 0, 0.22) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #15171b, #0e1013);
+}
+
+/* hazard stripe welded along the top edge */
+.mch-theme-kingdom .mch-banner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  background: repeating-linear-gradient(45deg, var(--mch-forge) 0 12px, #101114 12px 24px);
+  opacity: 0.9;
 }
 
 .mch-theme-kingdom .mch-banner-name {
-  font-family: Georgia, "Times New Roman", serif;
-  letter-spacing: 0.01em;
+  font-family: var(--mch-stencil);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 22px;
+  color: #e6e9ee;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.65);
 }
 
-.mch-theme-kingdom .mch-banner-right { color: var(--mch-gold); }
+.mch-theme-kingdom .mch-banner-kicker { color: var(--mch-steel); }
+.mch-theme-kingdom .mch-banner-right { color: var(--mch-forge); }
 
+.mch-theme-kingdom .mch-card,
+.mch-theme-kingdom.mch-hud-zone .mch-card {
+  border-color: rgba(154, 163, 173, 0.22);
+  background:
+    repeating-linear-gradient(98deg, rgba(255, 255, 255, 0.012) 0 3px, transparent 3px 8px),
+    repeating-linear-gradient(-14deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 10px),
+    linear-gradient(180deg, #131519, #0e1013);
+}
+
+/* spine becomes hazard tape */
 .mch-theme-kingdom .mch-card::before {
-  background: linear-gradient(180deg, var(--mch-gold), color-mix(in srgb, var(--mch-violet) 60%, transparent));
+  width: 4px;
+  background: repeating-linear-gradient(-45deg, var(--mch-forge) 0 6px, rgba(16, 17, 20, 0.9) 6px 12px);
+}
+
+/* corner rivets instead of HUD brackets */
+.mch-theme-kingdom.mch-hud-zone .mch-card::after {
+  --rivet: rgba(214, 220, 228, 0.5);
+  background:
+    radial-gradient(circle, var(--rivet) 0 1.7px, transparent 2.5px) top 5px left 7px / 8px 8px no-repeat,
+    radial-gradient(circle, var(--rivet) 0 1.7px, transparent 2.5px) top 5px right 5px / 8px 8px no-repeat,
+    radial-gradient(circle, var(--rivet) 0 1.7px, transparent 2.5px) bottom 5px left 7px / 8px 8px no-repeat,
+    radial-gradient(circle, var(--rivet) 0 1.7px, transparent 2.5px) bottom 5px right 5px / 8px 8px no-repeat;
+  opacity: 1;
 }
 
 .mch-theme-kingdom .mch-card-head h2 {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 15px;
+  font-family: var(--mch-stencil);
+  font-weight: 400;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  text-shadow: 1.5px 1.5px 0 rgba(0, 0, 0, 0.6);
+}
+
+.mch-theme-kingdom .mch-btn,
+.mch-theme-kingdom .mch-chip,
+.mch-theme-kingdom .mch-status,
+.mch-theme-kingdom .mch-input {
+  border-radius: 0;
+}
+
+.mch-theme-kingdom .mch-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--mch-stencil);
+  font-weight: 400;
 }
 
 /* --- MannCave: broadcast --- */
 
 .mch-theme-manncave .mch-banner-kicker { color: var(--mch-ember); }
+
+.mch-theme-manncave .mch-banner {
+  border-color: color-mix(in srgb, var(--mch-ember) 30%, transparent);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, 0.016) 2px 3px),
+    radial-gradient(320px 120px at 100% 0%, rgba(244, 63, 94, 0.12), transparent 70%),
+    linear-gradient(180deg, #120d10, #0b0a0e);
+}
+
+.mch-theme-manncave .mch-banner-name { letter-spacing: 0.02em; }
 
 .mch-wave { display: inline-flex; align-items: flex-end; gap: 3px; height: 22px; }
 
@@ -885,6 +997,11 @@
 .mch-hud-zone .mch-banner-kicker {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+/* area status lines pick up the area accent */
+.mch-hud-zone .mch-hud-tag { color: var(--mch-accent); }
+.mch-hud-zone .mch-hud-pip { background: var(--mch-accent); }
+.mch-hud-zone .mch-hud-tag.mch-dim { color: var(--mch-muted); }
 
 /* --- boot sequence --- */
 
