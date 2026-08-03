@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Notice } from "obsidian";
+import { MarkdownRenderer, Notice } from "obsidian";
 import type MannCaveHQPlugin from "../main";
 import { AREAS, AreaConfig, AreaSection, NoteInfo, VaultData } from "../vault";
 import { ChatMessage, getProvider } from "../ai";
@@ -296,17 +296,39 @@ function NoteRow({ note, onOpen }: { note: NoteInfo; onOpen: () => void }) {
 
 /* ---------- AI ---------- */
 
+/** Renders markdown through Obsidian's renderer into a themed container. */
+function MarkdownBody({ plugin, markdown }: { plugin: MannCaveHQPlugin; markdown: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const target = ref.current;
+    if (!target) return;
+    const tmp = document.createElement("div");
+    MarkdownRenderer.render(plugin.app, markdown, tmp, "", plugin).then(() => {
+      if (cancelled || !ref.current) return;
+      ref.current.replaceChildren(...Array.from(tmp.childNodes));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [plugin, markdown]);
+
+  return <div className="mch-md" ref={ref} />;
+}
+
 function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }) {
   const [brand, setBrand] = useState<AreaConfig | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, busy]);
+  }, [messages, busy, draft]);
 
   const provider = getProvider(plugin.settings);
 
@@ -318,6 +340,7 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
     setMessages(next);
     setInput("");
     setBusy(true);
+    let partial = "";
     try {
       let system =
         "You are the AI copilot inside MannCave HQ, a personal command center in Obsidian. Be direct, useful, and concise. Format answers in Markdown.";
@@ -327,13 +350,32 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
           system += `\n\nYou are currently working in the ${brand.name} brand area. Follow this brand voice document strictly:\n\n${voice}`;
         }
       }
-      const reply = await provider.chat(system, next);
+      let lastPaint = 0;
+      const reply = await provider.chatStream(system, next, (t) => {
+        partial = t;
+        const now = Date.now();
+        if (now - lastPaint > 120) {
+          lastPaint = now;
+          setDraft(t);
+        }
+      });
       setMessages([...next, { role: "assistant", content: reply }]);
     } catch (e: any) {
       new Notice(e.message, 6000);
-      setMessages(next);
+      // keep whatever streamed in before the error
+      setMessages(partial ? [...next, { role: "assistant", content: partial }] : next);
     } finally {
+      setDraft(null);
       setBusy(false);
+    }
+  };
+
+  const toHub = async (area: AreaConfig, content: string) => {
+    try {
+      const file = await data.sendToContentHub(area, content);
+      new Notice(`Idea saved to ${area.short} Content Hub: ${file.basename}`);
+    } catch (e: any) {
+      new Notice(`Couldn't save idea: ${e.message}`);
     }
   };
 
@@ -395,10 +437,35 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
         {messages.map((m, i) => (
           <div key={i} className={`mch-msg is-${m.role}`}>
             <div className="mch-msg-role">{m.role === "user" ? "You" : "AI"}</div>
-            <div className="mch-msg-body">{m.content}</div>
+            {m.role === "assistant" ? (
+              <>
+                <MarkdownBody plugin={plugin} markdown={m.content} />
+                <div className="mch-msg-actions">
+                  <span className="mch-msg-actions-label">→ Content Hub:</span>
+                  {AREAS.map((a) => (
+                    <button
+                      key={a.id}
+                      className="mch-chip"
+                      data-accent={AREA_ACCENT[a.id]}
+                      onClick={() => toHub(a, m.content)}
+                    >
+                      {a.short}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mch-msg-body">{m.content}</div>
+            )}
           </div>
         ))}
-        {busy && <div className="mch-msg is-assistant mch-thinking">Thinking…</div>}
+        {draft !== null && (
+          <div className="mch-msg is-assistant">
+            <div className="mch-msg-role">AI</div>
+            <MarkdownBody plugin={plugin} markdown={draft} />
+          </div>
+        )}
+        {busy && draft === null && <div className="mch-msg is-assistant mch-thinking">Thinking…</div>}
       </div>
 
       <div className="mch-ai-input">

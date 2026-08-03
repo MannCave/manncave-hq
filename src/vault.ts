@@ -204,6 +204,38 @@ export class VaultData {
     return "";
   }
 
+  /** Create a content-idea note in the area's Content Hub from an AI chat message. */
+  async sendToContentHub(area: AreaConfig, content: string): Promise<TFile> {
+    const folder =
+      area.sections.find((s) => s.label === "Content Hub")?.path ?? `${area.root}/Content Hub`;
+    await this.ensureFolder(folder);
+    const lines = content
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const rawTitle = lines.find((l) => /^#{1,6}\s/.test(l)) ?? lines[0] ?? "Content idea";
+    const title =
+      rawTitle
+        .replace(/^#{1,6}\s*/, "")
+        .replace(/[*_`>#[\]]/g, "")
+        .trim()
+        .slice(0, 60)
+        .trim() || "Content idea";
+    const safe = title.replace(/[\\/:*?"<>|^]/g, "").trim() || "Content idea";
+    let path = normalizePath(`${folder}/${safe}.md`);
+    let i = 1;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      path = normalizePath(`${folder}/${safe} ${++i}.md`);
+    }
+    const m = this.moment();
+    const note = `---\narea: ${area.id}\ntype: content-idea\nstatus: idea\nsource: ai-chat\ndate: ${m().format(
+      "YYYY-MM-DD"
+    )}\ntags: []\n---\n\n# ${title}\n\n> [!info] Captured from AI chat — ${m().format(
+      "YYYY-MM-DD"
+    )}\n\n${content.trim()}\n`;
+    return await this.app.vault.create(path, note);
+  }
+
   async saveTranscript(
     areaName: string | null,
     modelName: string,
