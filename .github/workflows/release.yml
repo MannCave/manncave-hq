@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,9 +24,19 @@ jobs:
           npm ci
           npm run build
 
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag=$(node -p "require('./manifest.json').version")
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Check versions match tag
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
+          tag="${{ steps.tag.outputs.tag }}"
           manifest_version=$(node -p "require('./manifest.json').version")
           package_version=$(node -p "require('./package.json').version")
           if [ "$tag" != "$manifest_version" ] || [ "$tag" != "$package_version" ]; then
@@ -37,8 +48,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
+          tag="${{ steps.tag.outputs.tag }}"
           gh release create "$tag" \
             --title "$tag" \
+            --target "$GITHUB_SHA" \
             --generate-notes \
             manifest.json main.js styles.css
