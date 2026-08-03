@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import type MannCaveHQPlugin from "./main";
 
 export interface HQSettings {
-  provider: "anthropic" | "ollama" | "openai_compat";
+  provider: "anthropic" | "ollama" | "openai_compat" | "nvidia";
   anthropicApiKey: string;
   anthropicModel: string;
   ollamaUrl: string;
@@ -10,6 +10,8 @@ export interface HQSettings {
   compatBaseUrl: string;
   compatApiKey: string;
   compatModel: string;
+  nvidiaApiKey: string;
+  nvidiaModel: string;
   dailyFolder: string;
   transcriptsFolder: string;
   templatesFolder: string;
@@ -25,6 +27,8 @@ export const DEFAULT_SETTINGS: HQSettings = {
   compatBaseUrl: "https://openrouter.ai/api/v1",
   compatApiKey: "",
   compatModel: "",
+  nvidiaApiKey: "",
+  nvidiaModel: "meta/llama-3.3-70b-instruct",
   dailyFolder: "01 - Daily Recap",
   transcriptsFolder: "05 - AI Transcripts",
   templatesFolder: "06 - Templates",
@@ -52,9 +56,10 @@ export class HQSettingTab extends PluginSettingTab {
         d
           .addOption("anthropic", "Anthropic (Claude)")
           .addOption("openai_compat", "OpenRouter / OpenAI-compatible")
+          .addOption("nvidia", "NVIDIA (build.nvidia.com)")
           .addOption("ollama", "Ollama (local)")
           .setValue(this.plugin.settings.provider)
-          .onChange(async (v: "anthropic" | "ollama" | "openai_compat") => {
+          .onChange(async (v: "anthropic" | "ollama" | "openai_compat" | "nvidia") => {
             this.plugin.settings.provider = v;
             await this.plugin.saveSettings();
           })
@@ -113,6 +118,29 @@ export class HQSettingTab extends PluginSettingTab {
       .addText((t) =>
         t.setValue(this.plugin.settings.compatModel).onChange(async (v) => {
           this.plugin.settings.compatModel = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("NVIDIA API key")
+      .setDesc("Create a free key at build.nvidia.com — open any model page and click \"Get API Key\".")
+      .addText((t) =>
+        t
+          .setPlaceholder("nvapi-...")
+          .setValue(this.plugin.settings.nvidiaApiKey)
+          .onChange(async (v) => {
+            this.plugin.settings.nvidiaApiKey = v.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("NVIDIA model")
+      .setDesc("Exact model ID from build.nvidia.com, e.g. meta/llama-3.3-70b-instruct or deepseek-ai/deepseek-r1.")
+      .addText((t) =>
+        t.setValue(this.plugin.settings.nvidiaModel).onChange(async (v) => {
+          this.plugin.settings.nvidiaModel = v.trim();
           await this.plugin.saveSettings();
         })
       );
