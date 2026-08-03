@@ -197,6 +197,76 @@ export class VaultData {
     await this.app.vault.modify(file, lines.join("\n"));
   }
 
+  /** The markdown note the user was last working in, even while the dashboard is focused. */
+  getActiveMarkdownFile(): TFile | null {
+    const direct = this.app.workspace.getActiveFile();
+    if (direct && direct.extension === "md") return direct;
+    let best: TFile | null = null;
+    let bestTime = 0;
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const file = (leaf.view as any)?.file as TFile | undefined;
+      const t = (leaf as any).activeTime ?? 0;
+      if (file && t >= bestTime) {
+        best = file;
+        bestTime = t;
+      }
+    }
+    return best;
+  }
+
+  private truncate(text: string, max: number): string {
+    return text.length > max ? text.slice(0, max) + "\n\n…[truncated]" : text;
+  }
+
+  /** Contents of the active note, formatted as chat context. */
+  async activeNoteContext(): Promise<string> {
+    const file = this.getActiveMarkdownFile();
+    if (!file) return "";
+    const content = await this.app.vault.read(file);
+    return `### Attached note: ${file.basename}\nPath: ${file.path}\n\n${this.truncate(content, 8000)}`;
+  }
+
+  /** Titles + statuses of every note in the given area (or all areas), formatted as chat context. */
+  backlogContext(area: AreaConfig | null): string {
+    const m = this.moment();
+    const now = Date.now();
+    const chunks: string[] = [];
+    for (const a of area ? [area] : AREAS) {
+      const lines: string[] = [];
+      for (const s of a.sections) {
+        for (const n of this.listNotes(s.path).slice(0, 30)) {
+          const days = Math.floor((now - n.mtime) / 86400000);
+          const age = days === 0 ? "today" : `${days}d ago`;
+          lines.push(
+            `- [${s.label}] ${n.title} — status: ${n.status ?? "none"}${
+              n.type ? `, type: ${n.type}` : ""
+            } (updated ${age})`
+          );
+        }
+      }
+      chunks.push(`### ${a.name} backlog (as of ${m().format("YYYY-MM-DD")})\n${lines.length ? lines.join("\n") : "- (empty)"}`);
+    }
+    return chunks.join("\n\n");
+  }
+
+  /** The last `count` daily recap notes, formatted as chat context. */
+  async recentRecapsContext(count = 7): Promise<string> {
+    const folder = this.app.vault.getAbstractFileByPath(
+      normalizePath(this.plugin.settings.dailyFolder)
+    );
+    if (!(folder instanceof TFolder)) return "";
+    const files = folder.children
+      .filter((f): f is TFile => f instanceof TFile && f.extension === "md")
+      .sort((a, b) => b.basename.localeCompare(a.basename))
+      .slice(0, count);
+    const parts: string[] = [];
+    for (const f of files) {
+      const content = await this.app.vault.read(f);
+      parts.push(`### Daily recap ${f.basename}\n\n${this.truncate(content, 2000)}`);
+    }
+    return parts.join("\n\n");
+  }
+
   async readBrandVoice(area: AreaConfig): Promise<string> {
     const path = normalizePath(`${this.plugin.settings.systemFolder}/${area.voiceFile}.md`);
     const file = this.app.vault.getAbstractFileByPath(path);

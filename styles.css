@@ -347,6 +347,29 @@
 
 .mch-ai-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+.mch-ctx-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--mch-line);
+  background: color-mix(in srgb, var(--mch-line) 14%, transparent);
+}
+
+.mch-ctx-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mch-muted);
+}
+
+.mch-ctx-bar .mch-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .mch-model {
   font-size: 11px;
   color: var(--mch-muted);

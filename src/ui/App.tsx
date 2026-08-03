@@ -41,11 +41,13 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
     const ref2 = plugin.app.vault.on("create", refresh);
     const ref3 = plugin.app.vault.on("delete", refresh);
     const ref4 = plugin.app.vault.on("rename", refresh);
+    const ref5 = plugin.app.workspace.on("active-leaf-change", refresh);
     return () => {
       plugin.app.metadataCache.offref(ref);
       plugin.app.vault.offref(ref2);
       plugin.app.vault.offref(ref3);
       plugin.app.vault.offref(ref4);
+      plugin.app.workspace.offref(ref5);
     };
   }, [plugin, refresh]);
 
@@ -73,12 +75,17 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
         </nav>
       </header>
 
-      <main className="mch-main" key={tick}>
+      {/* No key={tick}: a remount here would wipe in-progress chats; re-rendering
+          on tick is enough to refresh the vault-derived lists. The AI view stays
+          mounted (hidden) so conversations survive tab switches. */}
+      <main className="mch-main">
         {tab === "today" && <TodayView data={data} onOpenArea={(id) => setTab(id)} />}
         {tab === "wwp" && <AreaView data={data} area={AREAS[0]} />}
         {tab === "kingdom" && <AreaView data={data} area={AREAS[1]} />}
         {tab === "manncave" && <AreaView data={data} area={AREAS[2]} />}
-        {tab === "ai" && <AIView data={data} plugin={plugin} />}
+        <div style={{ display: tab === "ai" ? undefined : "none" }}>
+          <AIView data={data} plugin={plugin} />
+        </div>
       </main>
     </div>
   );
@@ -324,7 +331,12 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [ctxNote, setCtxNote] = useState(false);
+  const [ctxBacklog, setCtxBacklog] = useState(false);
+  const [ctxRecaps, setCtxRecaps] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const activeNote = data.getActiveMarkdownFile();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -349,6 +361,24 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
         if (voice) {
           system += `\n\nYou are currently working in the ${brand.name} brand area. Follow this brand voice document strictly:\n\n${voice}`;
         }
+      }
+      const context: string[] = [];
+      if (ctxNote) {
+        const s = await data.activeNoteContext();
+        if (s) context.push(s);
+      }
+      if (ctxBacklog) {
+        const s = data.backlogContext(brand);
+        if (s) context.push(s);
+      }
+      if (ctxRecaps) {
+        const s = await data.recentRecapsContext(7);
+        if (s) context.push(s);
+      }
+      if (context.length) {
+        system += `\n\n---\n\nThe user attached the following context from their vault. Ground your answers in it — reference their actual notes, ideas, and statuses by name rather than giving generic advice.\n\n${context.join(
+          "\n\n"
+        )}`;
       }
       let lastPaint = 0;
       const reply = await provider.chatStream(system, next, (t) => {
@@ -422,6 +452,32 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
             }}
           >
             Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="mch-ctx-bar">
+        <span className="mch-ctx-label">Context</span>
+        <div className="mch-chips">
+          <button
+            className={`mch-chip ${ctxNote ? "is-on" : ""}`}
+            disabled={!activeNote}
+            title={activeNote ? activeNote.path : "Open a note to attach it"}
+            onClick={() => setCtxNote((v) => !v)}
+          >
+            📄 {activeNote ? activeNote.basename : "No note open"}
+          </button>
+          <button
+            className={`mch-chip ${ctxBacklog ? "is-on" : ""}`}
+            onClick={() => setCtxBacklog((v) => !v)}
+          >
+            💡 {brand ? `${brand.short} backlog` : "All backlogs"}
+          </button>
+          <button
+            className={`mch-chip ${ctxRecaps ? "is-on" : ""}`}
+            onClick={() => setCtxRecaps((v) => !v)}
+          >
+            📅 Last 7 recaps
           </button>
         </div>
       </div>
