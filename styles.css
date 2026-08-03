@@ -395,6 +395,44 @@
 
 .mch-thinking { color: var(--mch-muted); font-style: italic; }
 
+/* rendered markdown inside assistant messages */
+.mch-msg .mch-md { white-space: normal; }
+.mch-md > div > :first-child { margin-top: 0; }
+.mch-md > div > :last-child { margin-bottom: 0; }
+.mch-md p, .mch-md ul, .mch-md ol, .mch-md blockquote, .mch-md pre { margin: 0.45em 0; }
+.mch-md h1, .mch-md h2, .mch-md h3, .mch-md h4 {
+  margin: 0.7em 0 0.3em;
+  font-size: 1.02em;
+  letter-spacing: 0.02em;
+}
+.mch-md ul, .mch-md ol { padding-inline-start: 1.2em; }
+.mch-md pre {
+  padding: 8px 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+  background: color-mix(in srgb, var(--mch-line) 40%, transparent);
+}
+.mch-md code { font-size: 0.92em; }
+.mch-md hr { border-color: var(--mch-line); }
+
+.mch-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--mch-line);
+}
+
+.mch-msg-actions-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mch-muted);
+}
+
 .mch-ai-input {
   display: flex;
   gap: 8px;

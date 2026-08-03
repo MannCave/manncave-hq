@@ -12,7 +12,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.4.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.5.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -37,8 +37,12 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - `main.js` is a build artifact and is gitignored — it ships only as a release asset.
 
 ## Roadmap
-- Markdown rendering in the AI chat pane
-- "Send idea to Content Hub" action from AI chat
-- Reactor alert rail (e.g. "2 ideas idle >7 days in Kingdom")
-- Streaming responses for providers
+- Vault-aware chat context (attach current note / Content Hub backlog / recent daily recaps to the conversation)
+- "Draft it" action on content-idea notes (idea + brand voice + template → first draft)
+- Repurposing engine (one finished piece → tweet thread, IG caption, YouTube description, newsletter blurb as linked notes)
+- Prompt presets stored as notes in `07 - System` (Brainstorm / Critique / Draft modes layered on brand voice)
+- Reactor alert rail (e.g. "2 ideas idle >7 days in Kingdom") + pipeline board view
 - Weekly review flow + habit streaks
+- Resume saved transcripts back into chat
+
+Shipped in 0.5.0: markdown rendering in chat, streaming responses (fetch/SSE with non-streaming fallback), "Send to Content Hub" action on AI replies.
