@@ -6,13 +6,13 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 ## Project context
 - Three brand areas, each with its own accent + identity: WWP / WorldWidePeptides (teal, molecular/peptide-chain motif), Kingdom Athletics (violet+gold, royal/crown motif, serif headers), MannCave Media (ember red, broadcast/waveform motif, LIVE badge). Home screen is red/black JARVIS HUD with an arc-reactor clock (day-progress ring), system modules, and a command-console quick capture.
 - The vault has numbered folders: `01 - Daily Recap`, `02 - WWP`, `03 - Kingdom Athletics`, `04 - MannCave Media`, `05 - AI Transcripts`, `06 - Templates`, `07 - System` (brand voice files used as AI system prompts).
-- AI providers (src/ai.ts): Anthropic, OpenRouter/OpenAI-compatible (currently active, free tier), Ollama. Provider abstraction — new providers are small adapters.
+- AI providers (src/ai.ts): Anthropic, OpenRouter/OpenAI-compatible, NVIDIA (build.nvidia.com, fixed base URL, reuses the OpenAI-compat adapter), Ollama. Provider abstraction — new providers are small adapters.
 
 ## Stack & commands
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.6.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.7.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -46,3 +46,4 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 
 Shipped in 0.5.0: markdown rendering in chat, streaming responses (fetch/SSE with non-streaming fallback), "Send to Content Hub" action on AI replies.
 Shipped in 0.6.0: vault-aware chat context (attach active note / area backlog with statuses / last 7 daily recaps via toggle chips); chat state now survives vault changes and tab switches.
+Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own key/model settings.

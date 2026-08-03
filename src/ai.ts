@@ -195,8 +195,15 @@ class OllamaProvider implements AIProvider {
 }
 
 class OpenAICompatProvider implements AIProvider {
-  label = "OpenRouter";
-  constructor(private baseUrl: string, private apiKey: string, public modelName: string) {}
+  constructor(
+    private baseUrl: string,
+    private apiKey: string,
+    public modelName: string,
+    public label = "OpenRouter",
+    private modelHint = "see openrouter.ai/models",
+    /** When set, an API key is mandatory and this message is shown if it's missing. */
+    private missingKeyMessage: string | null = null
+  ) {}
 
   private url(): string {
     return `${this.baseUrl.replace(/\/$/, "")}/chat/completions`;
@@ -210,8 +217,11 @@ class OpenAICompatProvider implements AIProvider {
   }
 
   private requireModel() {
+    if (this.missingKeyMessage && !this.apiKey) {
+      throw new Error(this.missingKeyMessage);
+    }
     if (!this.modelName) {
-      throw new Error("No model set. Pick a model ID in Settings → MannCave HQ (see openrouter.ai/models).");
+      throw new Error(`No model set. Pick a model ID in Settings → MannCave HQ (${this.modelHint}).`);
     }
   }
 
@@ -227,7 +237,7 @@ class OpenAICompatProvider implements AIProvider {
     });
     if (res.status >= 400) {
       const msg = res.json?.error?.message ?? `HTTP ${res.status}`;
-      throw new Error(`Provider error: ${msg}`);
+      throw new Error(`${this.label} error: ${msg}`);
     }
     return res.json?.choices?.[0]?.message?.content ?? "";
   }
@@ -247,7 +257,7 @@ class OpenAICompatProvider implements AIProvider {
       onDelta(text);
       return text;
     }
-    if (!res.ok || !res.body) throw await errorFromResponse(res, "Provider");
+    if (!res.ok || !res.body) throw await errorFromResponse(res, this.label);
     let text = "";
     for await (const line of readLines(res)) {
       if (!line.startsWith("data:")) continue; // skips OpenRouter ": PROCESSING" keep-alives
@@ -259,7 +269,7 @@ class OpenAICompatProvider implements AIProvider {
       } catch {
         continue;
       }
-      if (json.error) throw new Error(`Provider error: ${json.error?.message ?? "stream error"}`);
+      if (json.error) throw new Error(`${this.label} error: ${json.error?.message ?? "stream error"}`);
       const delta = json.choices?.[0]?.delta?.content;
       if (delta) {
         text += delta;
@@ -276,6 +286,16 @@ export function getProvider(settings: HQSettings): AIProvider {
       settings.compatBaseUrl || "https://openrouter.ai/api/v1",
       settings.compatApiKey,
       settings.compatModel
+    );
+  }
+  if (settings.provider === "nvidia") {
+    return new OpenAICompatProvider(
+      "https://integrate.api.nvidia.com/v1",
+      settings.nvidiaApiKey,
+      settings.nvidiaModel,
+      "NVIDIA",
+      "see build.nvidia.com",
+      "No NVIDIA API key set. Create one at build.nvidia.com and add it in Settings → MannCave HQ."
     );
   }
   if (settings.provider === "ollama") {
