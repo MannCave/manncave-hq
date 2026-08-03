@@ -42,7 +42,7 @@ export const AREAS: AreaConfig[] = [
   {
     id: "kingdom",
     name: "Kingdom Athletics",
-    short: "Kingdom",
+    short: "KA",
     root: "03 - Kingdom Athletics",
     voiceFile: "Brand Voice - Kingdom Athletics",
     sections: [

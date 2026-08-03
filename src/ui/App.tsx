@@ -9,22 +9,22 @@ type TabId = "today" | "wwp" | "kingdom" | "manncave" | "ai";
 
 const TABS: { id: TabId; label: string; accent: string }[] = [
   { id: "today", label: "Today", accent: "amber" },
-  { id: "wwp", label: "WWP", accent: "teal" },
-  { id: "kingdom", label: "Kingdom", accent: "violet" },
+  { id: "wwp", label: "WWP", accent: "gold" },
+  { id: "kingdom", label: "KA", accent: "forge" },
   { id: "manncave", label: "MannCave", accent: "ember" },
   { id: "ai", label: "AI", accent: "ice" },
 ];
 
 const AREA_ACCENT: Record<string, string> = {
-  wwp: "teal",
-  kingdom: "violet",
+  wwp: "gold",
+  kingdom: "forge",
   manncave: "ember",
 };
 
 const CAPTURE_TARGETS: { label: string; header: string | null }[] = [
   { label: "Notes", header: "## 📝 Notes & Thoughts" },
   { label: "WWP", header: "### WWP" },
-  { label: "Kingdom", header: "### Kingdom Athletics" },
+  { label: "KA", header: "### Kingdom Athletics" },
   { label: "MannCave", header: "### MannCave Media" },
   { label: "Personal", header: "### Personal" },
   { label: "Wins", header: "## 🏆 Wins" },
@@ -205,12 +205,23 @@ function TodayView({
 
 /* ---------- Area ---------- */
 
+const AREA_HUD: Record<string, { status: string; sector: string; kicker: string }> = {
+  wwp: { status: "GOLD STANDARD ONLINE", sector: "02", kicker: "R&D · OPERATIONS" },
+  kingdom: { status: "FORGE ACTIVE", sector: "03", kicker: "IRON · FAITH · DISCIPLINE" },
+  manncave: { status: "SIGNAL LIVE", sector: "04", kicker: "ON THE AIR" },
+};
+
 function AreaView({ data, area }: { data: VaultData; area: AreaConfig }) {
+  const hud = AREA_HUD[area.id];
   return (
     <div className={`mch-stack mch-hud-zone mch-boot mch-theme-${area.id}`} data-accent={AREA_ACCENT[area.id]}>
+      <div className="mch-hud-top">
+        <span className="mch-hud-tag"><span className="mch-hud-pip" />{hud.status}</span>
+        <span className="mch-hud-tag mch-dim">SECTOR {hud.sector} // {area.short.toUpperCase()}</span>
+      </div>
       <div className="mch-banner">
         <div className="mch-banner-left">
-          <div className="mch-banner-kicker">{area.id === "wwp" ? "R&D · OPERATIONS" : area.id === "kingdom" ? "FAITH · DISCIPLINE" : "ON THE AIR"}</div>
+          <div className="mch-banner-kicker">{hud.kicker}</div>
           <div className="mch-banner-name">{area.name}</div>
         </div>
         <div className="mch-banner-right">
