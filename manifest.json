@@ -1,7 +1,7 @@
 {
   "id": "manncave-hq",
   "name": "MannCave HQ",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "minAppVersion": "1.4.0",
   "description": "Personal command center: Daily Recap, WWP, Kingdom Athletics, MannCave Media, and an AI copilot that saves transcripts to your vault.",
   "author": "Houston",
