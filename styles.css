@@ -485,7 +485,10 @@
   --mch-gold: #d9b44a;
   --mch-forge: #ff7d26;
   --mch-steel: #9aa3ad;
+  --mch-route: #35c26e;
 }
+
+[data-accent="route"] { --mch-accent: var(--mch-route); }
 
 /* --- banners --- */
 
@@ -658,6 +661,53 @@
   letter-spacing: 0.1em;
   font-family: var(--mch-stencil);
   font-weight: 400;
+}
+
+/* --- MCCRV: highway --- */
+
+.mch-theme-mccrv .mch-banner {
+  border-color: rgba(154, 163, 173, 0.25);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.01) 0 2px, transparent 2px 6px),
+    linear-gradient(180deg, #101511, #0c0f0d);
+}
+
+/* wordmark styled like a highway exit sign */
+.mch-theme-mccrv .mch-banner-name {
+  display: inline-block;
+  background: color-mix(in srgb, var(--mch-route) 24%, #0c1b12);
+  border: 2px solid rgba(240, 244, 240, 0.85);
+  border-radius: 8px;
+  padding: 4px 14px;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  color: #f0f4f0;
+}
+
+.mch-theme-mccrv .mch-banner-kicker { color: var(--mch-route); }
+.mch-theme-mccrv .mch-banner-right { color: var(--mch-route); }
+
+/* card spine as dashed road center line */
+.mch-theme-mccrv .mch-card::before {
+  width: 4px;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--mch-route) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+.mch-theme-mccrv .mch-card {
+  border-color: rgba(154, 163, 173, 0.2);
+  background:
+    radial-gradient(160px 100px at 100% 0%, rgba(53, 194, 110, 0.06), transparent 70%),
+    linear-gradient(180deg, #10140f, #0b0e0c);
+}
+
+.mch-theme-mccrv .mch-card-head h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 13px;
 }
 
 /* --- MannCave: broadcast --- */
@@ -1115,6 +1165,123 @@
 }
 
 .mch-forge-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+
+/* ---- sketch modal (outside .mch-root — self-contained styling) ---- */
+
+.mch-sketch-modal {
+  width: min(760px, 96vw);
+  background: #0f1115;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  color: #e8eaf0;
+}
+
+.mch-sketch-heading {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #38bdf8;
+  margin-bottom: 10px;
+}
+
+.mch-sketch-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.mch-sketch-group { display: inline-flex; align-items: center; gap: 6px; }
+
+.mch-sketch-ink {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mch-sketch-ink.is-on { border-color: #e8eaf0; box-shadow: 0 0 8px rgba(232, 234, 240, 0.5); }
+
+.mch-sketch-tool {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  color: #8b92a5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.mch-sketch-tool.is-on {
+  color: #e8eaf0;
+  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.mch-sketch-wrap { margin-bottom: 10px; }
+
+.mch-sketch-wrap canvas {
+  width: 100%;
+  display: block;
+  background: #0f1115;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.mch-sketch-dest {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.mch-sketch-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #8b92a5;
+  margin-right: 4px;
+}
+
+.mch-sketch-save { display: flex; gap: 8px; }
+
+.mch-sketch-title {
+  flex: 1;
+  background: #1d2230;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #e8eaf0;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+
+.mch-sketch-title:focus { outline: none; border-color: rgba(56, 189, 248, 0.55); }
+
+.mch-sketch-savebtn {
+  background: #38bdf8;
+  border: none;
+  border-radius: 4px;
+  color: #0b0d12;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 9px 20px;
+  cursor: pointer;
+}
+
+.mch-sketch-savebtn:hover { filter: brightness(1.1); }
 
 /* --- boot sequence --- */
 

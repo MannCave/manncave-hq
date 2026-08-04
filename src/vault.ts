@@ -7,7 +7,7 @@ declare global {
   }
 }
 
-export type AreaId = "wwp" | "kingdom" | "manncave";
+export type AreaId = "wwp" | "kingdom" | "manncave" | "mccrv";
 
 export interface AreaSection {
   label: string;
@@ -64,6 +64,18 @@ export const AREAS: AreaConfig[] = [
       { label: "Vlogs & Updates", path: "04 - MannCave Media/Vlogs & Updates", template: null, newLabel: "New note" },
       { label: "Streams", path: "04 - MannCave Media/Streams", template: null, newLabel: "New note" },
       { label: "Content Hub", path: "04 - MannCave Media/Content Hub", template: "Content Idea Template", newLabel: "New idea" },
+    ],
+  },
+  {
+    id: "mccrv",
+    name: "McClainsRV",
+    short: "MCCRV",
+    root: "08 - McClainsRV",
+    voiceFile: "Brand Voice - McClainsRV",
+    sections: [
+      { label: "Projects", path: "08 - McClainsRV/Projects", template: "Project Template", newLabel: "New project" },
+      { label: "Notes", path: "08 - McClainsRV/Notes", template: null, newLabel: "New note" },
+      { label: "Content Hub", path: "08 - McClainsRV/Content Hub", template: "Content Idea Template", newLabel: "New idea" },
     ],
   },
 ];

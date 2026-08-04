@@ -28,6 +28,25 @@ export function CrownMark() {
   );
 }
 
+/** MCCRV — camper van rolling down the road */
+export function RVMark() {
+  return (
+    <svg className="mch-motif" width="46" height="26" viewBox="0 0 46 26" aria-hidden="true">
+      <path
+        d="M3 17 L3 8 Q3 5 6 5 L26 5 Q29 5 31 8 L36 8 Q40 8 41 12 L41 17 Z"
+        fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"
+      />
+      <line x1="8" y1="9" x2="14" y2="9" stroke="currentColor" strokeWidth="1.6" opacity="0.6" />
+      <line x1="32" y1="11" x2="37" y2="11" stroke="currentColor" strokeWidth="1.6" opacity="0.6" />
+      <circle cx="11" cy="19" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="33" cy="19" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      {[1, 18, 40].map((x) => (
+        <line key={x} x1={x} y1={24} x2={x + 4} y2={24} stroke="currentColor" strokeWidth="1.6" opacity="0.45" />
+      ))}
+    </svg>
+  );
+}
+
 /** MannCave — animated broadcast waveform */
 export function Waveform() {
   return (
@@ -115,5 +134,6 @@ export function Cursor() {
 export function AreaMotif({ id }: { id: AreaId }) {
   if (id === "wwp") return <PeptideChain />;
   if (id === "kingdom") return <CrownMark />;
+  if (id === "mccrv") return <RVMark />;
   return <Waveform />;
 }

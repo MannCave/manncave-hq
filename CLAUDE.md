@@ -5,27 +5,29 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 
 ## Project context
 - Three brand areas, each with its own accent + identity: WWP / WorldWidePeptides (black & gold company colors, molecular/peptide-chain motif, uppercase gold-gradient headers), Kingdom Athletics — always shortened to "KA" in UI copy (grungy industrial: forge-orange accent, hazard stripes, stencil/Impact headers, concrete-textured riveted cards, stenciled crown motif), MannCave Media (ember red, broadcast/waveform motif, scanline banner, LIVE badge). Home screen is red/black JARVIS HUD with an arc-reactor clock (day-progress ring), system modules, and a command-console quick capture; each area view opens with its own HUD status line (SECTOR 02/03/04).
-- The vault has numbered folders: `01 - Daily Recap`, `02 - WWP`, `03 - Kingdom Athletics`, `04 - MannCave Media`, `05 - AI Transcripts`, `06 - Templates`, `07 - System` (brand voice files used as AI system prompts).
+- The vault has numbered folders: `01 - Daily Recap`, `02 - WWP`, `03 - Kingdom Athletics`, `04 - MannCave Media`, `05 - AI Transcripts`, `06 - Templates`, `07 - System` (brand voice files used as AI system prompts), `08 - McClainsRV`.
+- Fourth brand area: McClainsRV — always shortened to "MCCRV" in UI copy (highway theme: route-green accent, exit-sign wordmark, dashed road-line card spines, camper-van motif, SECTOR 08). Graph nodes for MCCRV use the validated violet slot (AI transcripts fold into gray OTHER).
 - AI providers (src/ai.ts): Anthropic, OpenRouter/OpenAI-compatible, NVIDIA (build.nvidia.com, fixed base URL, reuses the OpenAI-compat adapter), Ollama. Provider abstraction — new providers are small adapters.
 
 ## Stack & commands
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.10.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.11.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
 - `src/settings.ts` — provider config + vault folder paths
 - `src/vault.ts` — vault data layer: AREAS config, note listing via metadataCache frontmatter, template-based note creation, daily-note quick capture, transcript saving
 - `src/ai.ts` — AIProvider interface + Anthropic/OpenAICompat/Ollama adapters (uses Obsidian `requestUrl`, never fetch, to avoid CORS)
+- `src/sketch.ts` — SketchModal: pointer-drawn canvas (pen pressure, eraser, undo), exports PNG with baked dark background + companion note, files to Daily or an area's Sketches folder
 - `src/view.tsx` — ItemView hosting React root
 - `src/ui/App.tsx` — tabs: Today (HUD), 3 area views, AI chat
 - `src/ui/motifs.tsx` — Reactor, PeptideChain, CrownMark, Waveform, LiveDot, Cursor
 - `styles.css` — design system; area theming via `data-accent` + `.mch-theme-*` classes; all animations respect `prefers-reduced-motion`
 
 ## Conventions
-- Frontmatter contract with the vault: `area` (wwp|kingdom|manncave|personal), `type` (daily|content-idea|blog|episode|merch|transcript|project), `status` (idea|in-progress|done). The dashboard reads these — don't break them.
+- Frontmatter contract with the vault: `area` (wwp|kingdom|manncave|mccrv|personal), `type` (daily|content-idea|blog|episode|merch|transcript|project|sketch), `status` (idea|in-progress|done). The dashboard reads these — don't break them.
 - Notes with `type: hub|overview|info` are excluded from listings.
 - Template placeholders: `{{title}}` and `{{date:FORMAT}}` (moment format via `window.moment`).
 - Mobile matters: this runs in Obsidian iOS. `isDesktopOnly: false` must stay false; avoid Node/Electron APIs.
@@ -50,3 +52,4 @@ Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own ke
 Shipped in 0.8.0: brand theme overhaul — WWP black & gold, KA grungy industrial ("KA" shorthand everywhere), MannCave scanline banner, per-area HUD status lines.
 Shipped in 0.9.0: Grid tab — TOKEN FLOW (per-request token usage recorded to data.json via provider-reported usage with char/4 estimation fallback; 14-day stacked bars + per-model 7d table, 90-day retention) and NEURAL MAP (canvas force-directed graph of vault links from metadataCache.resolvedLinks, colored by area, KA nodes square, click-to-open, 450-node cap). Chart palette steps validated for CVD/contrast on the dark surface.
 Shipped in 0.10.0: LINK FORGE on the Grid tab — AI scans the 80 most recent notes (excluding templates and hub/overview/info) and proposes up to 8 new note pairs with reasons; accepting writes a wikilink (fileManager.generateMarkdownLink) under a "## Related" section in the source note and refreshes the Neural Map. Suggestions are validated against exact paths and existing links; usage is recorded to TOKEN FLOW.
+Shipped in 0.11.0: McClainsRV (MCCRV) as a fourth brand area (tab, highway theme, Today module MOD-04, capture chip, AI chip, Content Hub, graph group) + handwritten notes: SketchModal canvas (finger/Pencil, pressure, six inks, eraser/undo/clear) saving PNG + companion note (`type: sketch`) into `<root>/Sketches/`, or embedding into today's daily log; opens from Today console, area banners, or the "New handwritten note" command.
