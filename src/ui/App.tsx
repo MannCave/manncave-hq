@@ -214,6 +214,8 @@ function TodayView({
           </button>
         </div>
       </section>
+
+      <UsagePanel plugin={plugin} />
     </div>
   );
 }
@@ -613,7 +615,6 @@ function GridView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin 
         <span className="mch-hud-tag"><span className="mch-hud-pip" />TELEMETRY ONLINE</span>
         <span className="mch-hud-tag mch-dim">SECTOR 05 // GRID</span>
       </div>
-      <UsagePanel plugin={plugin} />
       <VaultGraph data={data} plugin={plugin} scan={scan} onRescan={rescan} />
       <LinkForge data={data} plugin={plugin} onLinked={rescan} />
     </div>

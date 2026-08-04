@@ -13,7 +13,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.11.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.11.1 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -52,4 +52,5 @@ Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own ke
 Shipped in 0.8.0: brand theme overhaul — WWP black & gold, KA grungy industrial ("KA" shorthand everywhere), MannCave scanline banner, per-area HUD status lines.
 Shipped in 0.9.0: Grid tab — TOKEN FLOW (per-request token usage recorded to data.json via provider-reported usage with char/4 estimation fallback; 14-day stacked bars + per-model 7d table, 90-day retention) and NEURAL MAP (canvas force-directed graph of vault links from metadataCache.resolvedLinks, colored by area, KA nodes square, click-to-open, 450-node cap). Chart palette steps validated for CVD/contrast on the dark surface.
 Shipped in 0.10.0: LINK FORGE on the Grid tab — AI scans the 80 most recent notes (excluding templates and hub/overview/info) and proposes up to 8 new note pairs with reasons; accepting writes a wikilink (fileManager.generateMarkdownLink) under a "## Related" section in the source note and refreshes the Neural Map. Suggestions are validated against exact paths and existing links; usage is recorded to TOKEN FLOW.
+Shipped in 0.11.1: TOKEN FLOW moved from the Grid tab to the Today (home) tab, below the command console; Grid keeps NEURAL MAP + LINK FORGE.
 Shipped in 0.11.0: McClainsRV (MCCRV) as a fourth brand area (tab, highway theme, Today module MOD-04, capture chip, AI chip, Content Hub, graph group) + handwritten notes: SketchModal canvas (finger/Pencil, pressure, six inks, eraser/undo/clear) saving PNG + companion note (`type: sketch`) into `<root>/Sketches/`, or embedding into today's daily log; opens from Today console, area banners, or the "New handwritten note" command.
