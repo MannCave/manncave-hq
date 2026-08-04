@@ -4,15 +4,17 @@ import type MannCaveHQPlugin from "../main";
 import type { UsageEntry } from "../settings";
 import { AREAS, AreaConfig, AreaSection, NoteInfo, VaultData } from "../vault";
 import { ChatMessage, getProvider } from "../ai";
+import { SketchModal } from "../sketch";
 import { AreaMotif, Reactor, LiveDot, Cursor } from "./motifs";
 
-type TabId = "today" | "wwp" | "kingdom" | "manncave" | "grid" | "ai";
+type TabId = "today" | "wwp" | "kingdom" | "manncave" | "mccrv" | "grid" | "ai";
 
 const TABS: { id: TabId; label: string; accent: string }[] = [
   { id: "today", label: "Today", accent: "amber" },
   { id: "wwp", label: "WWP", accent: "gold" },
   { id: "kingdom", label: "KA", accent: "forge" },
   { id: "manncave", label: "MannCave", accent: "ember" },
+  { id: "mccrv", label: "MCCRV", accent: "route" },
   { id: "grid", label: "Grid", accent: "ice" },
   { id: "ai", label: "AI", accent: "ice" },
 ];
@@ -21,6 +23,7 @@ const AREA_ACCENT: Record<string, string> = {
   wwp: "gold",
   kingdom: "forge",
   manncave: "ember",
+  mccrv: "route",
 };
 
 const CAPTURE_TARGETS: { label: string; header: string | null }[] = [
@@ -28,6 +31,7 @@ const CAPTURE_TARGETS: { label: string; header: string | null }[] = [
   { label: "WWP", header: "### WWP" },
   { label: "KA", header: "### Kingdom Athletics" },
   { label: "MannCave", header: "### MannCave Media" },
+  { label: "MCCRV", header: "### McClainsRV" },
   { label: "Personal", header: "### Personal" },
   { label: "Wins", header: "## 🏆 Wins" },
 ];
@@ -81,10 +85,11 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
           on tick is enough to refresh the vault-derived lists. The AI view stays
           mounted (hidden) so conversations survive tab switches. */}
       <main className="mch-main">
-        {tab === "today" && <TodayView data={data} onOpenArea={(id) => setTab(id)} />}
-        {tab === "wwp" && <AreaView data={data} area={AREAS[0]} />}
-        {tab === "kingdom" && <AreaView data={data} area={AREAS[1]} />}
-        {tab === "manncave" && <AreaView data={data} area={AREAS[2]} />}
+        {tab === "today" && <TodayView data={data} plugin={plugin} onOpenArea={(id) => setTab(id)} />}
+        {tab === "wwp" && <AreaView data={data} plugin={plugin} area={AREAS[0]} />}
+        {tab === "kingdom" && <AreaView data={data} plugin={plugin} area={AREAS[1]} />}
+        {tab === "manncave" && <AreaView data={data} plugin={plugin} area={AREAS[2]} />}
+        {tab === "mccrv" && <AreaView data={data} plugin={plugin} area={AREAS[3]} />}
         {tab === "grid" && <GridView data={data} plugin={plugin} />}
         <div style={{ display: tab === "ai" ? undefined : "none" }}>
           <AIView data={data} plugin={plugin} />
@@ -98,9 +103,11 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
 
 function TodayView({
   data,
+  plugin,
   onOpenArea,
 }: {
   data: VaultData;
+  plugin: MannCaveHQPlugin;
   onOpenArea: (id: TabId) => void;
 }) {
   const [text, setText] = useState("");
@@ -162,12 +169,17 @@ function TodayView({
       <section className="mch-hud-card mch-console">
         <div className="mch-hud-card-head">
           <span>COMMAND INPUT</span>
-          <button
-            className="mch-btn mch-btn-ghost"
-            onClick={async () => data.openFile(await data.getOrCreateToday())}
-          >
-            OPEN DAILY LOG →
-          </button>
+          <span className="mch-graph-tools">
+            <button className="mch-btn mch-btn-ghost" onClick={() => new SketchModal(plugin).open()}>
+              ✏ SKETCH
+            </button>
+            <button
+              className="mch-btn mch-btn-ghost"
+              onClick={async () => data.openFile(await data.getOrCreateToday())}
+            >
+              OPEN DAILY LOG →
+            </button>
+          </span>
         </div>
         <div className="mch-console-row">
           <span className="mch-prompt">&gt;</span>
@@ -212,9 +224,10 @@ const AREA_HUD: Record<string, { status: string; sector: string; kicker: string 
   wwp: { status: "GOLD STANDARD ONLINE", sector: "02", kicker: "R&D · OPERATIONS" },
   kingdom: { status: "FORGE ACTIVE", sector: "03", kicker: "IRON · FAITH · DISCIPLINE" },
   manncave: { status: "SIGNAL LIVE", sector: "04", kicker: "ON THE AIR" },
+  mccrv: { status: "CONVOY ONLINE", sector: "08", kicker: "SHOWROOM · SERVICE · ROAD" },
 };
 
-function AreaView({ data, area }: { data: VaultData; area: AreaConfig }) {
+function AreaView({ data, plugin, area }: { data: VaultData; plugin: MannCaveHQPlugin; area: AreaConfig }) {
   const hud = AREA_HUD[area.id];
   return (
     <div className={`mch-stack mch-hud-zone mch-boot mch-theme-${area.id}`} data-accent={AREA_ACCENT[area.id]}>
@@ -229,6 +242,12 @@ function AreaView({ data, area }: { data: VaultData; area: AreaConfig }) {
         </div>
         <div className="mch-banner-right">
           {area.id === "manncave" && <LiveDot />}
+          <button
+            className="mch-btn mch-btn-ghost"
+            onClick={() => new SketchModal(plugin, area.id).open()}
+          >
+            ✏ SKETCH
+          </button>
           <AreaMotif id={area.id} />
         </div>
       </div>
@@ -568,12 +587,14 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
 const USAGE_IN = "#2b97c8";
 const USAGE_OUT = "#c98007";
 
+// First entries follow AREAS order; OTHER also absorbs AI transcripts so the
+// colored series stay within the validated palette.
 const GRAPH_GROUPS: { label: string; color: string; square?: boolean }[] = [
   { label: "WWP", color: "#a29433" },
   { label: "KA", color: "#d14a12", square: true },
   { label: "MCM", color: "#bd1373" },
+  { label: "MCCRV", color: "#7950d8" },
   { label: "DAILY", color: "#2b97c8" },
-  { label: "AI LOG", color: "#7950d8" },
   { label: "OTHER", color: "#5c6472" },
 ];
 
@@ -796,12 +817,11 @@ function VaultGraph({
 
     const s = plugin.settings;
     const groupOf = (path: string): number => {
-      if (path.startsWith(AREAS[0].root + "/")) return 0;
-      if (path.startsWith(AREAS[1].root + "/")) return 1;
-      if (path.startsWith(AREAS[2].root + "/")) return 2;
-      if (path.startsWith(s.dailyFolder + "/")) return 3;
-      if (path.startsWith(s.transcriptsFolder + "/")) return 4;
-      return 5;
+      for (let i = 0; i < AREAS.length; i++) {
+        if (path.startsWith(AREAS[i].root + "/")) return i;
+      }
+      if (path.startsWith(s.dailyFolder + "/")) return AREAS.length;
+      return AREAS.length + 1;
     };
 
     let nodes: GNode[] = plugin.app.vault.getMarkdownFiles().map((f) => ({

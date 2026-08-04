@@ -2,6 +2,7 @@ import { Plugin } from "obsidian";
 import { HQView, VIEW_TYPE_HQ } from "./view";
 import { DEFAULT_SETTINGS, HQSettings, HQSettingTab } from "./settings";
 import type { ChatUsage } from "./ai";
+import { SketchModal } from "./sketch";
 
 export default class MannCaveHQPlugin extends Plugin {
   settings: HQSettings;
@@ -19,6 +20,12 @@ export default class MannCaveHQPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open dashboard",
       callback: () => this.activateView(),
+    });
+
+    this.addCommand({
+      id: "new-sketch",
+      name: "New handwritten note",
+      callback: () => new SketchModal(this).open(),
     });
 
     this.addSettingTab(new HQSettingTab(this.app, this));
