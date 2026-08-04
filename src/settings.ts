@@ -1,6 +1,15 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type MannCaveHQPlugin from "./main";
 
+export interface UsageEntry {
+  in: number;
+  out: number;
+  requests: number;
+}
+
+/** date (YYYY-MM-DD) → "Provider · model" → totals */
+export type UsageLog = Record<string, Record<string, UsageEntry>>;
+
 export interface HQSettings {
   provider: "anthropic" | "ollama" | "openai_compat" | "nvidia";
   anthropicApiKey: string;
@@ -16,6 +25,7 @@ export interface HQSettings {
   transcriptsFolder: string;
   templatesFolder: string;
   systemFolder: string;
+  usageLog: UsageLog;
 }
 
 export const DEFAULT_SETTINGS: HQSettings = {
@@ -33,6 +43,7 @@ export const DEFAULT_SETTINGS: HQSettings = {
   transcriptsFolder: "05 - AI Transcripts",
   templatesFolder: "06 - Templates",
   systemFolder: "07 - System",
+  usageLog: {},
 };
 
 export class HQSettingTab extends PluginSettingTab {

@@ -12,7 +12,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.8.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.9.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -48,3 +48,4 @@ Shipped in 0.5.0: markdown rendering in chat, streaming responses (fetch/SSE wit
 Shipped in 0.6.0: vault-aware chat context (attach active note / area backlog with statuses / last 7 daily recaps via toggle chips); chat state now survives vault changes and tab switches.
 Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own key/model settings.
 Shipped in 0.8.0: brand theme overhaul — WWP black & gold, KA grungy industrial ("KA" shorthand everywhere), MannCave scanline banner, per-area HUD status lines.
+Shipped in 0.9.0: Grid tab — TOKEN FLOW (per-request token usage recorded to data.json via provider-reported usage with char/4 estimation fallback; 14-day stacked bars + per-model 7d table, 90-day retention) and NEURAL MAP (canvas force-directed graph of vault links from metadataCache.resolvedLinks, colored by area, KA nodes square, click-to-open, 450-node cap). Chart palette steps validated for CVD/contrast on the dark surface.
