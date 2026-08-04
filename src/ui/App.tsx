@@ -584,6 +584,8 @@ function fmtTok(n: number): string {
 }
 
 function GridView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }) {
+  const [scan, setScan] = useState(0);
+  const rescan = useCallback(() => setScan((s) => s + 1), []);
   return (
     <div className="mch-stack mch-hud-zone mch-boot" data-accent="ice">
       <div className="mch-hud-top">
@@ -591,7 +593,8 @@ function GridView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin 
         <span className="mch-hud-tag mch-dim">SECTOR 05 // GRID</span>
       </div>
       <UsagePanel plugin={plugin} />
-      <VaultGraph data={data} plugin={plugin} />
+      <VaultGraph data={data} plugin={plugin} scan={scan} onRescan={rescan} />
+      <LinkForge data={data} plugin={plugin} onLinked={rescan} />
     </div>
   );
 }
@@ -762,12 +765,21 @@ function hash01(s: string): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 
-function VaultGraph({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }) {
+function VaultGraph({
+  data,
+  plugin,
+  scan,
+  onRescan,
+}: {
+  data: VaultData;
+  plugin: MannCaveHQPlugin;
+  scan: number;
+  onRescan: () => void;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [meta, setMeta] = useState({ nodes: 0, links: 0 });
   const [counts, setCounts] = useState<number[]>([]);
-  const [gen, setGen] = useState(0);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -948,14 +960,14 @@ function VaultGraph({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugi
       canvas.removeEventListener("click", onClick);
       canvas.removeEventListener("mousemove", onMove);
     };
-  }, [gen, plugin, data]);
+  }, [scan, plugin, data]);
 
   return (
     <section className="mch-hud-card" data-accent="ice">
       <div className="mch-hud-card-head">
         <span>NEURAL MAP // VAULT LINKS</span>
         <span className="mch-graph-tools">
-          <button className="mch-btn mch-btn-ghost" onClick={() => setGen((g) => g + 1)}>RESCAN</button>
+          <button className="mch-btn mch-btn-ghost" onClick={onRescan}>RESCAN</button>
           <span className="mch-hud-id">MOD-06</span>
         </span>
       </div>
@@ -973,6 +985,129 @@ function VaultGraph({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugi
           <b>{meta.nodes}</b> NODES · <b>{meta.links}</b> LINKS · tap a node to open it
         </span>
       </div>
+    </section>
+  );
+}
+
+/* ---------- Link Forge: AI-suggested connections ---------- */
+
+interface LinkSuggestion {
+  source: string;
+  target: string;
+  reason: string;
+  sourceTitle: string;
+  targetTitle: string;
+}
+
+const noteTitle = (path: string) => path.split("/").pop()?.replace(/\.md$/, "") ?? path;
+
+function LinkForge({
+  data,
+  plugin,
+  onLinked,
+}: {
+  data: VaultData;
+  plugin: MannCaveHQPlugin;
+  onLinked: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [ran, setRan] = useState(false);
+  const [sugs, setSugs] = useState<LinkSuggestion[]>([]);
+
+  const scan = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const provider = getProvider(plugin.settings);
+      const { catalog, existingPairs, paths } = await data.linkForgeContext();
+      const system =
+        "You connect related notes in a personal Obsidian vault. You respond with ONLY a JSON array — no prose, no markdown fences.";
+      const prompt = `Here is a catalog of vault notes, one per line ("path :: excerpt"):\n\n${catalog}\n\nSuggest up to 8 NEW links between notes whose content genuinely relates — same project or product, an idea that supports another, a recap that mentions a piece of content. Quality over quantity; skip weak matches. Use EXACT paths from the catalog and do not link a note to itself.\n\nRespond with ONLY this JSON shape:\n[{"source":"<path>","target":"<path>","reason":"<one short sentence>"}]`;
+      const result = await provider.chat(system, [{ role: "user", content: prompt }]);
+      plugin.recordUsage(provider.label, provider.modelName, result.usage);
+      const match = result.text.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error("the model didn't return a usable list — try again");
+      const raw = JSON.parse(match[0]) as any[];
+      const seen = new Set<string>();
+      const parsed: LinkSuggestion[] = [];
+      for (const r of raw) {
+        if (typeof r?.source !== "string" || typeof r?.target !== "string") continue;
+        if (!paths.has(r.source) || !paths.has(r.target) || r.source === r.target) continue;
+        const key = r.source < r.target ? `${r.source}|${r.target}` : `${r.target}|${r.source}`;
+        if (existingPairs.has(key) || seen.has(key)) continue;
+        seen.add(key);
+        parsed.push({
+          source: r.source,
+          target: r.target,
+          reason: String(r.reason ?? "").slice(0, 140),
+          sourceTitle: noteTitle(r.source),
+          targetTitle: noteTitle(r.target),
+        });
+      }
+      setSugs(parsed);
+      setRan(true);
+    } catch (e: any) {
+      new Notice(`Link scan failed: ${e.message}`, 6000);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const accept = async (i: number) => {
+    const sug = sugs[i];
+    try {
+      await data.addRelatedLink(sug.source, sug.target);
+      new Notice(`Linked: ${sug.sourceTitle} → ${sug.targetTitle}`);
+      setSugs((cur) => cur.filter((_, j) => j !== i));
+      onLinked();
+    } catch (e: any) {
+      new Notice(`Couldn't link: ${e.message}`, 6000);
+    }
+  };
+
+  return (
+    <section className="mch-hud-card" data-accent="ice">
+      <div className="mch-hud-card-head">
+        <span>LINK FORGE // SUGGESTED CONNECTIONS</span>
+        <span className="mch-graph-tools">
+          <button className="mch-btn mch-btn-ghost" disabled={busy} onClick={scan}>
+            {busy ? "SCANNING…" : ran ? "RESCAN NOTES" : "SCAN FOR LINKS"}
+          </button>
+          <span className="mch-hud-id">MOD-07</span>
+        </span>
+      </div>
+      {!ran && !busy && (
+        <div className="mch-empty">
+          Have the AI read your recent notes and propose connections. Accepted links are added under a
+          "Related" section in the source note — and light up on the Neural Map.
+        </div>
+      )}
+      {busy && <div className="mch-empty">Reading the vault and looking for connections…</div>}
+      {ran && !busy && sugs.length === 0 && (
+        <div className="mch-empty">No new connections found — the map is up to date. Write more, then rescan.</div>
+      )}
+      {sugs.length > 0 && (
+        <ul className="mch-forge-list">
+          {sugs.map((s, i) => (
+            <li key={`${s.source}|${s.target}`} className="mch-forge-row">
+              <div className="mch-forge-pair">
+                <b>{s.sourceTitle}</b> ↔ <b>{s.targetTitle}</b>
+                {s.reason && <span className="mch-forge-reason">{s.reason}</span>}
+              </div>
+              <span className="mch-forge-actions">
+                <button className="mch-btn" onClick={() => accept(i)}>LINK</button>
+                <button
+                  className="mch-btn mch-btn-ghost"
+                  aria-label="Dismiss suggestion"
+                  onClick={() => setSugs((cur) => cur.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

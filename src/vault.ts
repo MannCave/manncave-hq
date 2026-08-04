@@ -267,6 +267,61 @@ export class VaultData {
     return parts.join("\n\n");
   }
 
+  /** Compact catalog of recent notes + existing link pairs, for AI link suggestions. */
+  async linkForgeContext(maxNotes = 80): Promise<{
+    catalog: string;
+    existingPairs: Set<string>;
+    paths: Set<string>;
+  }> {
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => !f.path.startsWith(this.plugin.settings.templatesFolder + "/"))
+      .filter((f) => {
+        const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+        return fm.type !== "hub" && fm.type !== "overview" && fm.type !== "info";
+      })
+      .sort((a, b) => b.stat.mtime - a.stat.mtime)
+      .slice(0, maxNotes);
+    const lines: string[] = [];
+    for (const f of files) {
+      const raw = await this.app.vault.cachedRead(f);
+      const body = raw
+        .replace(/^---\n[\s\S]*?\n---\n?/, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 180);
+      lines.push(`- ${f.path} :: ${body}`);
+    }
+    const existingPairs = new Set<string>();
+    for (const [src, targets] of Object.entries(this.app.metadataCache.resolvedLinks)) {
+      for (const t of Object.keys(targets)) {
+        existingPairs.add(src < t ? `${src}|${t}` : `${t}|${src}`);
+      }
+    }
+    return { catalog: lines.join("\n"), existingPairs, paths: new Set(files.map((f) => f.path)) };
+  }
+
+  /** Append a wikilink to the source note under a "## Related" section (created if missing). */
+  async addRelatedLink(sourcePath: string, targetPath: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(normalizePath(sourcePath));
+    const target = this.app.vault.getAbstractFileByPath(normalizePath(targetPath));
+    if (!(file instanceof TFile)) throw new Error(`Note not found: ${sourcePath}`);
+    if (!(target instanceof TFile)) throw new Error(`Note not found: ${targetPath}`);
+    const link = this.app.fileManager.generateMarkdownLink(target, file.path);
+    const content = await this.app.vault.read(file);
+    const lines = content.split("\n");
+    const idx = lines.findIndex((l) => /^## Related\b/.test(l));
+    if (idx === -1) {
+      await this.app.vault.modify(file, content.trimEnd() + `\n\n## Related\n\n- ${link}\n`);
+      return;
+    }
+    let insertAt = idx + 1;
+    while (insertAt < lines.length && !/^#{1,6} /.test(lines[insertAt])) insertAt++;
+    while (insertAt > idx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+    lines.splice(insertAt, 0, `- ${link}`);
+    await this.app.vault.modify(file, lines.join("\n"));
+  }
+
   async readBrandVoice(area: AreaConfig): Promise<string> {
     const path = normalizePath(`${this.plugin.settings.systemFolder}/${area.voiceFile}.md`);
     const file = this.app.vault.getAbstractFileByPath(path);
