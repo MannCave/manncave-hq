@@ -1003,6 +1003,94 @@
 .mch-hud-zone .mch-hud-pip { background: var(--mch-accent); }
 .mch-hud-zone .mch-hud-tag.mch-dim { color: var(--mch-muted); }
 
+/* --- Grid: telemetry --- */
+
+.mch-chart { width: 100%; height: auto; display: block; }
+
+.mch-chart-tick {
+  fill: var(--mch-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.mch-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--mch-muted);
+}
+
+.mch-legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+.mch-legend-item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.mch-legend-item i.is-square { border-radius: 0; }
+
+.mch-legend-note { margin-left: auto; font-weight: 400; letter-spacing: 0.06em; }
+.mch-legend-note b { color: var(--mch-text); font-variant-numeric: tabular-nums; }
+
+.mch-usage-totals {
+  margin-top: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--mch-muted);
+}
+
+.mch-usage-totals b {
+  color: var(--mch-text);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--mch-accent) 45%, transparent);
+}
+
+.mch-usage-table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--mch-muted);
+}
+
+.mch-usage-table th {
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  border-bottom: 1px solid var(--mch-line);
+  padding: 3px 8px 3px 0;
+}
+
+.mch-usage-table th.num, .mch-usage-table td.num { text-align: right; }
+
+.mch-usage-table td {
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--mch-line) 55%, transparent);
+}
+
+.mch-usage-table td.num { color: var(--mch-text); font-variant-numeric: tabular-nums; }
+
+.mch-graph-tools { display: inline-flex; align-items: center; gap: 10px; }
+
+.mch-graph-wrap canvas {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--mch-line);
+  background: rgba(5, 6, 10, 0.6);
+}
+
 /* --- boot sequence --- */
 
 .mch-boot > * {

@@ -6,19 +6,49 @@ export interface ChatMessage {
   content: string;
 }
 
+/** Token usage for one request. `estimated` when the provider didn't report it. */
+export interface ChatUsage {
+  inputTokens: number;
+  outputTokens: number;
+  estimated: boolean;
+}
+
+export interface ChatResult {
+  text: string;
+  usage: ChatUsage;
+}
+
 /** Called with the full accumulated text each time new tokens arrive. */
 export type StreamCallback = (text: string) => void;
 
 export interface AIProvider {
   label: string;
   modelName: string;
-  chat(system: string, messages: ChatMessage[]): Promise<string>;
+  chat(system: string, messages: ChatMessage[]): Promise<ChatResult>;
   /**
    * Streamed variant of chat(). Falls back to non-streaming automatically
    * when the runtime can't stream from the provider (e.g. CORS), so callers
    * can always use this.
    */
-  chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<string>;
+  chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<ChatResult>;
+}
+
+const estimateTokens = (text: string) => Math.max(1, Math.ceil(text.length / 4));
+
+function buildUsage(
+  inTokens: number | null | undefined,
+  outTokens: number | null | undefined,
+  system: string,
+  messages: ChatMessage[],
+  text: string
+): ChatUsage {
+  const haveBoth = inTokens != null && outTokens != null;
+  return {
+    inputTokens:
+      inTokens ?? estimateTokens(system) + messages.reduce((n, m) => n + estimateTokens(m.content), 0),
+    outputTokens: outTokens ?? estimateTokens(text),
+    estimated: !haveBoth,
+  };
 }
 
 /** Yield decoded lines (without trailing newline) from a streaming response body. */
@@ -63,7 +93,7 @@ class AnthropicProvider implements AIProvider {
     };
   }
 
-  async chat(system: string, messages: ChatMessage[]): Promise<string> {
+  async chat(system: string, messages: ChatMessage[]): Promise<ChatResult> {
     if (!this.apiKey) {
       throw new Error("No Anthropic API key set. Add one in Settings → MannCave HQ.");
     }
@@ -84,13 +114,15 @@ class AnthropicProvider implements AIProvider {
       throw new Error(`Anthropic error: ${msg}`);
     }
     const blocks = res.json?.content ?? [];
-    return blocks
+    const text = blocks
       .filter((b: any) => b.type === "text")
       .map((b: any) => b.text)
       .join("\n");
+    const u = res.json?.usage;
+    return { text, usage: buildUsage(u?.input_tokens, u?.output_tokens, system, messages, text) };
   }
 
-  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<string> {
+  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<ChatResult> {
     if (!this.apiKey) {
       throw new Error("No Anthropic API key set. Add one in Settings → MannCave HQ.");
     }
@@ -108,12 +140,14 @@ class AnthropicProvider implements AIProvider {
         }),
       });
     } catch {
-      const text = await this.chat(system, messages);
-      onDelta(text);
-      return text;
+      const result = await this.chat(system, messages);
+      onDelta(result.text);
+      return result;
     }
     if (!res.ok || !res.body) throw await errorFromResponse(res, "Anthropic");
     let text = "";
+    let inTok: number | null = null;
+    let outTok: number | null = null;
     for await (const line of readLines(res)) {
       if (!line.startsWith("data:")) continue;
       let json: any;
@@ -122,14 +156,18 @@ class AnthropicProvider implements AIProvider {
       } catch {
         continue;
       }
-      if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
+      if (json.type === "message_start") {
+        inTok = json.message?.usage?.input_tokens ?? inTok;
+      } else if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
         text += json.delta.text;
         onDelta(text);
+      } else if (json.type === "message_delta") {
+        outTok = json.usage?.output_tokens ?? outTok;
       } else if (json.type === "error") {
         throw new Error(`Anthropic error: ${json.error?.message ?? "stream error"}`);
       }
     }
-    return text;
+    return { text, usage: buildUsage(inTok, outTok, system, messages, text) };
   }
 }
 
@@ -141,7 +179,7 @@ class OllamaProvider implements AIProvider {
     return `${this.baseUrl.replace(/\/$/, "")}/api/chat`;
   }
 
-  async chat(system: string, messages: ChatMessage[]): Promise<string> {
+  async chat(system: string, messages: ChatMessage[]): Promise<ChatResult> {
     const all = system ? [{ role: "system", content: system }, ...messages] : messages;
     const res = await requestUrl({
       url: this.url(),
@@ -153,10 +191,14 @@ class OllamaProvider implements AIProvider {
     if (res.status >= 400) {
       throw new Error(`Ollama error: HTTP ${res.status}. Is Ollama running at ${this.baseUrl}?`);
     }
-    return res.json?.message?.content ?? "";
+    const text = res.json?.message?.content ?? "";
+    return {
+      text,
+      usage: buildUsage(res.json?.prompt_eval_count, res.json?.eval_count, system, messages, text),
+    };
   }
 
-  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<string> {
+  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<ChatResult> {
     const all = system ? [{ role: "system", content: system }, ...messages] : messages;
     let res: Response;
     try {
@@ -168,14 +210,16 @@ class OllamaProvider implements AIProvider {
     } catch {
       // Ollama only allows cross-origin requests when OLLAMA_ORIGINS is set;
       // requestUrl bypasses CORS, so fall back to the non-streaming path.
-      const text = await this.chat(system, messages);
-      onDelta(text);
-      return text;
+      const result = await this.chat(system, messages);
+      onDelta(result.text);
+      return result;
     }
     if (!res.ok || !res.body) {
       throw new Error(`Ollama error: HTTP ${res.status}. Is Ollama running at ${this.baseUrl}?`);
     }
     let text = "";
+    let inTok: number | null = null;
+    let outTok: number | null = null;
     for await (const line of readLines(res)) {
       let json: any;
       try {
@@ -188,9 +232,13 @@ class OllamaProvider implements AIProvider {
         text += json.message.content;
         onDelta(text);
       }
-      if (json.done) break;
+      if (json.done) {
+        inTok = json.prompt_eval_count ?? inTok;
+        outTok = json.eval_count ?? outTok;
+        break;
+      }
     }
-    return text;
+    return { text, usage: buildUsage(inTok, outTok, system, messages, text) };
   }
 }
 
@@ -225,7 +273,7 @@ class OpenAICompatProvider implements AIProvider {
     }
   }
 
-  async chat(system: string, messages: ChatMessage[]): Promise<string> {
+  async chat(system: string, messages: ChatMessage[]): Promise<ChatResult> {
     this.requireModel();
     const all = system ? [{ role: "system", content: system }, ...messages] : messages;
     const res = await requestUrl({
@@ -239,10 +287,12 @@ class OpenAICompatProvider implements AIProvider {
       const msg = res.json?.error?.message ?? `HTTP ${res.status}`;
       throw new Error(`${this.label} error: ${msg}`);
     }
-    return res.json?.choices?.[0]?.message?.content ?? "";
+    const text = res.json?.choices?.[0]?.message?.content ?? "";
+    const u = res.json?.usage;
+    return { text, usage: buildUsage(u?.prompt_tokens, u?.completion_tokens, system, messages, text) };
   }
 
-  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<string> {
+  async chatStream(system: string, messages: ChatMessage[], onDelta: StreamCallback): Promise<ChatResult> {
     this.requireModel();
     const all = system ? [{ role: "system", content: system }, ...messages] : messages;
     let res: Response;
@@ -250,15 +300,22 @@ class OpenAICompatProvider implements AIProvider {
       res = await fetch(this.url(), {
         method: "POST",
         headers: this.headers(),
-        body: JSON.stringify({ model: this.modelName, messages: all, stream: true }),
+        body: JSON.stringify({
+          model: this.modelName,
+          messages: all,
+          stream: true,
+          stream_options: { include_usage: true },
+        }),
       });
     } catch {
-      const text = await this.chat(system, messages);
-      onDelta(text);
-      return text;
+      const result = await this.chat(system, messages);
+      onDelta(result.text);
+      return result;
     }
     if (!res.ok || !res.body) throw await errorFromResponse(res, this.label);
     let text = "";
+    let inTok: number | null = null;
+    let outTok: number | null = null;
     for await (const line of readLines(res)) {
       if (!line.startsWith("data:")) continue; // skips OpenRouter ": PROCESSING" keep-alives
       const payload = line.slice(5).trim();
@@ -270,13 +327,17 @@ class OpenAICompatProvider implements AIProvider {
         continue;
       }
       if (json.error) throw new Error(`${this.label} error: ${json.error?.message ?? "stream error"}`);
+      if (json.usage) {
+        inTok = json.usage.prompt_tokens ?? inTok;
+        outTok = json.usage.completion_tokens ?? outTok;
+      }
       const delta = json.choices?.[0]?.delta?.content;
       if (delta) {
         text += delta;
         onDelta(text);
       }
     }
-    return text;
+    return { text, usage: buildUsage(inTok, outTok, system, messages, text) };
   }
 }
 
