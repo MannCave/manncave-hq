@@ -268,7 +268,7 @@ function TodayView({
 
       <div className="mch-snap-grid">
         <DevSnapshot plugin={plugin} onOpen={() => onOpenArea("dev")} />
-        <UsageSnapshot plugin={plugin} />
+        <UsageSnapshot plugin={plugin} onOpen={() => onOpenArea("grid")} />
         <MiniGraph plugin={plugin} onOpen={() => onOpenArea("grid")} />
       </div>
     </div>
@@ -790,7 +790,7 @@ function UsagePanel({ plugin }: { plugin: MannCaveHQPlugin }) {
             TODAY <b>{fmtTok(today.in + today.out)}</b> · 7D <b>{fmtTok(last7)}</b> · 90D <b>{fmtTok(allTime)}</b> TOKENS
           </div>
           {provRows.length > 0 && (
-            <table className="mch-usage-table">
+            <div className="mch-scroll-x"><table className="mch-usage-table">
               <thead>
                 <tr><th>MODEL (LAST 7D)</th><th className="num">IN</th><th className="num">OUT</th><th className="num">REQ</th></tr>
               </thead>
@@ -804,7 +804,7 @@ function UsagePanel({ plugin }: { plugin: MannCaveHQPlugin }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </>
       )}
@@ -1176,7 +1176,7 @@ function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
           </svg>
         )}
         {gh && gh.recent.length > 0 && (
-          <table className="mch-usage-table">
+          <div className="mch-scroll-x"><table className="mch-usage-table">
             <thead>
               <tr><th>RECENT PUSHES</th><th></th><th className="num">WHEN</th></tr>
             </thead>
@@ -1189,7 +1189,7 @@ function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
         {loading && !gh && <div className="mch-empty">Contacting GitHub…</div>}
       </section>
@@ -1268,7 +1268,7 @@ function DevSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () 
   );
 }
 
-function UsageSnapshot({ plugin }: { plugin: MannCaveHQPlugin }) {
+function UsageSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () => void }) {
   const m = (window as any).moment;
   const log = plugin.settings.usageLog ?? {};
   const series: number[] = [];
@@ -1288,7 +1288,7 @@ function UsageSnapshot({ plugin }: { plugin: MannCaveHQPlugin }) {
   const active = [...models][0] ?? "—";
 
   return (
-    <div className="mch-snap" data-accent="ice">
+    <button className="mch-snap" data-accent="ice" onClick={onOpen}>
       <span className="mch-snap-head">
         <span>TOKEN FLOW</span>
         <span className="mch-snap-more">GRID →</span>
@@ -1314,7 +1314,7 @@ function UsageSnapshot({ plugin }: { plugin: MannCaveHQPlugin }) {
           </span>
         </>
       )}
-    </div>
+    </button>
   );
 }
 
