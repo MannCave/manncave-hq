@@ -387,6 +387,33 @@ export class VaultData {
     await this.app.vault.modify(file, lines.join("\n"));
   }
 
+  /**
+   * Append today's commits to today's daily note under a Dev section.
+   * Skips any commit already logged, so it is safe to run repeatedly.
+   */
+  async logCommits(items: { repo: string; message: string }[]): Promise<number> {
+    if (items.length === 0) return 0;
+    const file = await this.getOrCreateToday();
+    const content = await this.app.vault.read(file);
+    const fresh = items.filter((c) => !content.includes(c.message));
+    if (fresh.length === 0) return 0;
+
+    const bullets = fresh.map((c) => `- \`${c.repo}\` ${c.message}`);
+    const header = "## 💻 Dev";
+    const lines = content.split("\n");
+    const idx = lines.findIndex((l) => l.trim() === header);
+    if (idx === -1) {
+      await this.app.vault.modify(file, `${content.trimEnd()}\n\n${header}\n\n${bullets.join("\n")}\n`);
+      return fresh.length;
+    }
+    let insertAt = idx + 1;
+    while (insertAt < lines.length && !/^#{1,6} /.test(lines[insertAt])) insertAt++;
+    while (insertAt > idx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+    lines.splice(insertAt, 0, ...bullets);
+    await this.app.vault.modify(file, lines.join("\n"));
+    return fresh.length;
+  }
+
   async readBrandVoice(area: AreaConfig): Promise<string> {
     const path = normalizePath(`${this.plugin.settings.systemFolder}/${area.voiceFile}.md`);
     const file = this.app.vault.getAbstractFileByPath(path);

@@ -22,6 +22,30 @@ export interface RepoCommits {
   count: number;
 }
 
+export interface PullItem {
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  ageDays: number;
+  draft: boolean;
+}
+
+export interface IssueItem {
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  ageDays: number;
+}
+
+export interface RepoHealth {
+  repo: string;
+  status: "success" | "failure" | "running" | "none";
+  url: string;
+  when: string;
+}
+
 export interface GitHubData {
   name: string;
   publicRepos: number;
@@ -33,6 +57,12 @@ export interface GitHubData {
   commitsByDay: { date: string; label: string; count: number }[];
   commitsByRepo: RepoCommits[];
   recent: CommitItem[];
+  openPRs: PullItem[];
+  openIssues: IssueItem[];
+  health: RepoHealth[];
+  releases14d: number;
+  streakDays: number;
+  activeDays30: number;
 }
 
 let cache: { key: string; at: number; data: GitHubData } | null = null;
@@ -66,11 +96,23 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     return res.json;
   };
 
-  const [user, repos, page1, page2] = await Promise.all([
+  // search + actions endpoints are rate-limited harder than the rest; a failure
+  // there should degrade that panel, never the whole Dev tab
+  const soft = <T,>(pr: Promise<T>, fallback: T): Promise<T> => pr.catch(() => fallback);
+
+  const [user, repos, page1, page2, prSearch, issueSearch] = await Promise.all([
     gh(`/users/${username}`),
     gh(`/users/${username}/repos?sort=pushed&per_page=100&type=owner`),
     gh(`/users/${username}/events?per_page=100`),
-    gh(`/users/${username}/events?per_page=100&page=2`).catch(() => []),
+    soft(gh(`/users/${username}/events?per_page=100&page=2`), []),
+    soft(
+      gh(`/search/issues?q=${encodeURIComponent(`is:pr is:open author:${username}`)}&per_page=20&sort=created`),
+      { items: [] }
+    ),
+    soft(
+      gh(`/search/issues?q=${encodeURIComponent(`is:issue is:open assignee:${username}`)}&per_page=20&sort=created`),
+      { items: [] }
+    ),
   ]);
 
   const m = (window as any).moment;
@@ -104,7 +146,63 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     }
   }
 
+  const repoOf = (u: string) => (u ?? "").split("/repos/")[1]?.split("/").slice(0, 2).join("/") ?? "";
+  const ageOf = (iso: string) => Math.max(0, m().diff(m(iso), "days"));
+
+  const openPRs: PullItem[] = ((prSearch as any).items ?? []).map((p: any) => ({
+    repo: repoOf(p.repository_url).split("/").pop() ?? "",
+    number: p.number,
+    title: String(p.title ?? "").slice(0, 90),
+    url: p.html_url,
+    ageDays: ageOf(p.created_at),
+    draft: !!p.draft,
+  }));
+
+  const openIssues: IssueItem[] = ((issueSearch as any).items ?? []).map((it: any) => ({
+    repo: repoOf(it.repository_url).split("/").pop() ?? "",
+    number: it.number,
+    title: String(it.title ?? "").slice(0, 90),
+    url: it.html_url,
+    ageDays: ageOf(it.created_at),
+  }));
+
+  // ship cadence: tags pushed in the window (this project releases by tag)
+  const releases14d = ([...page1, ...page2] as any[]).filter(
+    (e) => e.type === "CreateEvent" && e.payload?.ref_type === "tag" && days.has(m(e.created_at).format("YYYY-MM-DD"))
+  ).length;
+
+  // streak of consecutive days with a push, allowing today to be empty so far
+  const pushDays = new Set(pushes.map((e: any) => m(e.created_at).format("YYYY-MM-DD")));
+  let streakDays = 0;
+  for (let i = 0; i < 60; i++) {
+    const d = m().subtract(i, "days").format("YYYY-MM-DD");
+    if (pushDays.has(d)) streakDays++;
+    else if (i > 0) break;
+  }
+  const activeDays30 = [...pushDays].filter((d) => m().diff(m(d, "YYYY-MM-DD"), "days") <= 30).length;
+
+  // CI health for the handful of repos actually being worked on
+  const watch = (repos as any[]).slice(0, 4);
+  const health: RepoHealth[] = (
+    await Promise.all(
+      watch.map(async (r: any) => {
+        const runs = await soft(gh(`/repos/${r.full_name}/actions/runs?per_page=1`), { workflow_runs: [] });
+        const run = (runs as any).workflow_runs?.[0];
+        if (!run) return { repo: r.name, status: "none" as const, url: r.html_url, when: "" };
+        const status: RepoHealth["status"] =
+          run.status !== "completed" ? "running" : run.conclusion === "success" ? "success" : "failure";
+        return { repo: r.name, status, url: run.html_url, when: m(run.created_at).fromNow() };
+      })
+    )
+  ).filter((h) => h.status !== "none");
+
   return {
+    openPRs,
+    openIssues,
+    health,
+    releases14d,
+    streakDays,
+    activeDays30,
     name: user.name ?? username,
     publicRepos: user.public_repos ?? 0,
     followers: user.followers ?? 0,
