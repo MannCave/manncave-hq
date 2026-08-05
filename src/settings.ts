@@ -11,7 +11,7 @@ export interface UsageEntry {
 export type UsageLog = Record<string, Record<string, UsageEntry>>;
 
 export interface HQSettings {
-  provider: "anthropic" | "ollama" | "openai_compat" | "nvidia";
+  provider: "anthropic" | "ollama" | "openai_compat" | "nvidia" | "deepseek";
   anthropicApiKey: string;
   anthropicModel: string;
   ollamaUrl: string;
@@ -21,6 +21,8 @@ export interface HQSettings {
   compatModel: string;
   nvidiaApiKey: string;
   nvidiaModel: string;
+  deepseekApiKey: string;
+  deepseekModel: string;
   dailyFolder: string;
   transcriptsFolder: string;
   templatesFolder: string;
@@ -41,6 +43,8 @@ export const DEFAULT_SETTINGS: HQSettings = {
   compatModel: "",
   nvidiaApiKey: "",
   nvidiaModel: "meta/llama-3.3-70b-instruct",
+  deepseekApiKey: "",
+  deepseekModel: "deepseek-v4-flash",
   dailyFolder: "01 - Daily Recap",
   transcriptsFolder: "05 - AI Transcripts",
   templatesFolder: "06 - Templates",
@@ -71,10 +75,11 @@ export class HQSettingTab extends PluginSettingTab {
         d
           .addOption("anthropic", "Anthropic (Claude)")
           .addOption("openai_compat", "OpenRouter / OpenAI-compatible")
+          .addOption("deepseek", "DeepSeek")
           .addOption("nvidia", "NVIDIA (build.nvidia.com)")
           .addOption("ollama", "Ollama (local)")
           .setValue(this.plugin.settings.provider)
-          .onChange(async (v: "anthropic" | "ollama" | "openai_compat" | "nvidia") => {
+          .onChange(async (v: HQSettings["provider"]) => {
             this.plugin.settings.provider = v;
             await this.plugin.saveSettings();
           })
@@ -106,7 +111,7 @@ export class HQSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("OpenRouter / compatible base URL")
-      .setDesc("Works with OpenRouter, DeepSeek (https://api.deepseek.com, model deepseek-chat), vLLM, LM Studio, LiteLLM, and other OpenAI-compatible endpoints.")
+      .setDesc("Works with OpenRouter, vLLM, LM Studio, LiteLLM, and other OpenAI-compatible endpoints. DeepSeek now has its own provider option above.")
       .addText((t) =>
         t.setValue(this.plugin.settings.compatBaseUrl).onChange(async (v) => {
           this.plugin.settings.compatBaseUrl = v.trim();
@@ -135,6 +140,40 @@ export class HQSettingTab extends PluginSettingTab {
           this.plugin.settings.compatModel = v.trim();
           await this.plugin.saveSettings();
         })
+      );
+
+    new Setting(containerEl)
+      .setName("DeepSeek API key")
+      .setDesc("Create one at platform.deepseek.com → API keys. Billed per token; very inexpensive.")
+      .addText((t) =>
+        t
+          .setPlaceholder("sk-...")
+          .setValue(this.plugin.settings.deepseekApiKey)
+          .onChange(async (v) => {
+            this.plugin.settings.deepseekApiKey = v.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("DeepSeek model")
+      .setDesc(
+        "V4 Flash is the everyday pick — fast and cheap, ideal for AUTO routing and quick chats. " +
+          "V4 Pro is the heavyweight for brand-voice drafting and Link Forge judgement."
+      )
+      .addDropdown((d) =>
+        d
+          .addOption("deepseek-v4-flash", "V4 Flash — fast & cheap (recommended)")
+          .addOption("deepseek-v4-pro", "V4 Pro — highest quality")
+          .setValue(
+            ["deepseek-v4-flash", "deepseek-v4-pro"].includes(this.plugin.settings.deepseekModel)
+              ? this.plugin.settings.deepseekModel
+              : "deepseek-v4-flash"
+          )
+          .onChange(async (v) => {
+            this.plugin.settings.deepseekModel = v;
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(containerEl)

@@ -7,13 +7,13 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - Three brand areas, each with its own accent + identity: WWP / WorldWidePeptides (black & gold company colors, molecular/peptide-chain motif, uppercase gold-gradient headers), Kingdom Athletics — always shortened to "KA" in UI copy (grungy industrial: forge-orange accent, hazard stripes, stencil/Impact headers, concrete-textured riveted cards, stenciled crown motif), MannCave Media (ember red, broadcast/waveform motif, scanline banner, LIVE badge). Home screen is red/black JARVIS HUD with an arc-reactor clock (day-progress ring), system modules, and a command-console quick capture; each area view opens with its own HUD status line (SECTOR 02/03/04).
 - The vault has numbered folders: `01 - Daily Recap`, `02 - WWP`, `03 - Kingdom Athletics`, `04 - MannCave Media`, `05 - AI Transcripts`, `06 - Templates`, `07 - System` (brand voice files used as AI system prompts), `08 - McClainsRV`.
 - Fourth brand area: McClainsRV — always shortened to "MCCRV" in UI copy (highway theme: route-green accent, exit-sign wordmark, dashed road-line card spines, camper-van motif, SECTOR 08). Graph nodes for MCCRV use the validated violet slot (AI transcripts fold into gray OTHER).
-- AI providers (src/ai.ts): Anthropic, OpenRouter/OpenAI-compatible, NVIDIA (build.nvidia.com, fixed base URL, reuses the OpenAI-compat adapter), Ollama. Provider abstraction — new providers are small adapters.
+- AI providers (src/ai.ts): Anthropic, OpenRouter/OpenAI-compatible, DeepSeek (api.deepseek.com, fixed base URL, model picked from a dropdown), NVIDIA (build.nvidia.com, fixed base URL), Ollama — the last three all reuse the OpenAI-compat adapter. Provider abstraction — new providers are small adapters.
 
 ## Stack & commands
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. Layout guard: `npm run lint:layout` (runs automatically as part of `npm run build`). No unit test suite yet.
-- Current version: 0.15.1 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.16.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -48,6 +48,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - Weekly review flow + habit streaks
 - Resume saved transcripts back into chat
 
+Shipped in 0.16.0: DeepSeek as a first-class provider — own key field and a model **dropdown** (`deepseek-v4-flash` default / `deepseek-v4-pro`) so no model ID has to be typed. Note the legacy `deepseek-chat` / `deepseek-reasoner` aliases were deprecated 2026-07-24; the V4 IDs are the live ones. Verified against DeepSeek docs at build time rather than assumed.
 Shipped in 0.15.1: the iOS card collapse is fixed at the root — clickable card containers (`.mch-sector`, the three `.mch-snap` cards) are now `<div role="button">` via the new `CardButton` helper, not `<button>`. 0.13.2's inner-wrapper approach was insufficient: WebKit still refuses to size the button box to stacked content even at `display:block`, so tile contents rendered below their own border into the next card. Added `scripts/check-layout.mjs`, wired into `npm run build`, which fails the build if any `<button>` contains a column-layout class (self-tested in both directions).
 Shipped in 0.15.0: IN FLIGHT panel on Dev (MOD-10) — open PRs (age, draft flag, 3d+ flagged stale), assigned issues, CI health pills per repo from the latest workflow run, and readouts for shipped-14d / day-streak / active-days-30d. Dev signals now feed the alert rail (failing CI, PRs open 3d+). "LOG COMMITS →" appends today's pushes to the daily note under `## 💻 Dev`, deduped so it is safe to re-run. `useGitHub` hook shares one cached fetch between Today and Dev.
 Shipped in 0.14.0: ALERT RAIL on Today (stalled-idea / nothing-in-progress / nothing-shipped-this-week chips computed from statuses + mtime, colour-coded per brand, tap to jump; shows "ALL SECTORS NOMINAL" when clear) and PIPELINE BOARD on every area view (PIPELINE/FILES switch, idea → in-progress → done columns that swipe horizontally on phones, tap a card to open, tap → to advance — writes `status` via `fileManager.processFrontMatter`). Board columns are divs, and clickable cards split into a title button + advance button, so no `<button>` is ever a flex column (see 0.13.2).
