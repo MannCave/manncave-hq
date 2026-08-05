@@ -17,6 +17,12 @@ Personal command center inside Obsidian: Today view with quick capture, brand ar
 
 With Obsidian Sync set to sync plugins, it installs itself on your other devices automatically.
 
+## Claude on any device (no API keys)
+See [docs/claude-connector-setup.md](docs/claude-connector-setup.md) — connect
+claude.ai (web/desktop/mobile, Pro subscription) to the vault through a private
+GitHub repo + the GitHub remote MCP connector, so Claude can read notes and
+commit drafts from anywhere.
+
 ## Develop
 ```
 npm install
