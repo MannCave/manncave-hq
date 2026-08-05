@@ -1153,10 +1153,17 @@ function DevView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }
           <>
             <div className="mch-readouts">
               <span><b>{gh.publicRepos}</b>REPOS</span>
+              {gh.authenticated && <span><b>{gh.privateRepos}</b>PRIVATE</span>}
               <span><b>{gh.totalStars}</b>STARS</span>
               <span><b>{gh.followers}</b>FOLLOWERS</span>
               <span><b>{gh.commits30d}</b>COMMITS 30D</span>
             </div>
+            {!gh.authenticated && (
+              <div className="mch-hint">
+                Public repos only. Add a GitHub token in Settings → MannCave HQ to fold private
+                repos and their commits into these stats.
+              </div>
+            )}
             <ul className="mch-list">
               {gh.repos.map((r) => (
                 <li key={r.fullName}>
