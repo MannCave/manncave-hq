@@ -26,6 +26,8 @@ export interface HQSettings {
   templatesFolder: string;
   systemFolder: string;
   usageLog: UsageLog;
+  githubUser: string;
+  githubToken: string;
 }
 
 export const DEFAULT_SETTINGS: HQSettings = {
@@ -44,6 +46,8 @@ export const DEFAULT_SETTINGS: HQSettings = {
   templatesFolder: "06 - Templates",
   systemFolder: "07 - System",
   usageLog: {},
+  githubUser: "MannCave",
+  githubToken: "",
 };
 
 export class HQSettingTab extends PluginSettingTab {
@@ -102,7 +106,7 @@ export class HQSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("OpenRouter / compatible base URL")
-      .setDesc("Works with OpenRouter, vLLM, LM Studio, LiteLLM, llama.cpp server, and other OpenAI-compatible endpoints.")
+      .setDesc("Works with OpenRouter, DeepSeek (https://api.deepseek.com, model deepseek-chat), vLLM, LM Studio, LiteLLM, and other OpenAI-compatible endpoints.")
       .addText((t) =>
         t.setValue(this.plugin.settings.compatBaseUrl).onChange(async (v) => {
           this.plugin.settings.compatBaseUrl = v.trim();
@@ -173,6 +177,31 @@ export class HQSettingTab extends PluginSettingTab {
           this.plugin.settings.ollamaModel = v.trim();
           await this.plugin.saveSettings();
         })
+      );
+
+    new Setting(containerEl).setName("GitHub").setHeading();
+
+    new Setting(containerEl)
+      .setName("GitHub username")
+      .setDesc("Powers the Dev tab (repos, commit pulse).")
+      .addText((t) =>
+        t.setValue(this.plugin.settings.githubUser).onChange(async (v) => {
+          this.plugin.settings.githubUser = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("GitHub token (optional)")
+      .setDesc("Fine-grained personal access token. Optional — raises rate limits and includes private repo activity.")
+      .addText((t) =>
+        t
+          .setPlaceholder("github_pat_...")
+          .setValue(this.plugin.settings.githubToken)
+          .onChange(async (v) => {
+            this.plugin.settings.githubToken = v.trim();
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(containerEl).setName("Vault folders").setHeading();
