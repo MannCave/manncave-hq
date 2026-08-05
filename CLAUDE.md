@@ -13,7 +13,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.13.2 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.14.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -44,10 +44,10 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - "Draft it" action on content-idea notes (idea + brand voice + template → first draft)
 - Repurposing engine (one finished piece → tweet thread, IG caption, YouTube description, newsletter blurb as linked notes)
 - Prompt presets stored as notes in `07 - System` (Brainstorm / Critique / Draft modes layered on brand voice)
-- Reactor alert rail (e.g. "2 ideas idle >7 days in Kingdom") + pipeline board view
 - Weekly review flow + habit streaks
 - Resume saved transcripts back into chat
 
+Shipped in 0.14.0: ALERT RAIL on Today (stalled-idea / nothing-in-progress / nothing-shipped-this-week chips computed from statuses + mtime, colour-coded per brand, tap to jump; shows "ALL SECTORS NOMINAL" when clear) and PIPELINE BOARD on every area view (PIPELINE/FILES switch, idea → in-progress → done columns that swipe horizontally on phones, tap a card to open, tap → to advance — writes `status` via `fileManager.processFrontMatter`). Board columns are divs, and clickable cards split into a title button + advance button, so no `<button>` is ever a flex column (see 0.13.2).
 Shipped in 0.5.0: markdown rendering in chat, streaming responses (fetch/SSE with non-streaming fallback), "Send to Content Hub" action on AI replies.
 Shipped in 0.6.0: vault-aware chat context (attach active note / area backlog with statuses / last 7 daily recaps via toggle chips); chat state now survives vault changes and tab switches.
 Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own key/model settings.
