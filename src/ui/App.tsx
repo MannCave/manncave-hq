@@ -4,7 +4,7 @@ import type MannCaveHQPlugin from "../main";
 import type { UsageEntry } from "../settings";
 import { AREAS, AreaConfig, AreaSection, NoteInfo, VaultData } from "../vault";
 import { ChatMessage, getProvider } from "../ai";
-import { fetchGitHubData, getGitHubData, GitHubData } from "../github";
+import { fetchGitHubData, getGitHubData, githubContext, githubDayContext, GitHubData } from "../github";
 import { buildGraph, drawGraph, GNode, GRAPH_GROUPS, seedLayout, stepLayout } from "../graph";
 import { SketchModal } from "../sketch";
 import { AreaMotif, Reactor, LiveDot, Cursor } from "./motifs";
@@ -43,7 +43,18 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
   const data = useMemo(() => new VaultData(plugin), [plugin]);
   const [tab, setTab] = useState<TabId>("today");
   const [tick, setTick] = useState(0);
+  const [recapNonce, setRecapNonce] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  // "Summarize today's work" from the command palette lands on the AI tab
+  useEffect(
+    () =>
+      plugin.onRecapRequest(() => {
+        setTab("ai");
+        setRecapNonce((n) => n + 1);
+      }),
+    [plugin]
+  );
 
   useEffect(() => {
     const ref = plugin.app.metadataCache.on("resolved", refresh);
@@ -96,7 +107,7 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
         {tab === "grid" && <GridView data={data} plugin={plugin} />}
         {tab === "dev" && <DevView data={data} plugin={plugin} />}
         <div style={{ display: tab === "ai" ? undefined : "none" }}>
-          <AIView data={data} plugin={plugin} />
+          <AIView data={data} plugin={plugin} recapNonce={recapNonce} />
         </div>
       </main>
     </div>
@@ -476,7 +487,15 @@ function MarkdownBody({ plugin, markdown }: { plugin: MannCaveHQPlugin; markdown
   return <div className="mch-md" ref={ref} />;
 }
 
-function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }) {
+function AIView({
+  data,
+  plugin,
+  recapNonce,
+}: {
+  data: VaultData;
+  plugin: MannCaveHQPlugin;
+  recapNonce: number;
+}) {
   const [brand, setBrand] = useState<AreaConfig | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -486,9 +505,11 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
   const [ctxNote, setCtxNote] = useState(false);
   const [ctxBacklog, setCtxBacklog] = useState(false);
   const [ctxRecaps, setCtxRecaps] = useState(false);
+  const [ctxGitHub, setCtxGitHub] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeNote = data.getActiveMarkdownFile();
+  const ghUser = plugin.settings.githubUser;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -496,13 +517,15 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
 
   const provider = getProvider(plugin.settings);
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || busy) return;
+  /**
+   * Send one turn. `extra` carries context the chips don't cover (the day recap
+   * assembles its own), so both paths share the streaming + usage plumbing.
+   */
+  const run = async (text: string, extra: string[] = []) => {
+    if (busy) return;
     setSaved(false);
     const next: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages(next);
-    setInput("");
     setBusy(true);
     let partial = "";
     try {
@@ -514,7 +537,7 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
           system += `\n\nYou are currently working in the ${brand.name} brand area. Follow this brand voice document strictly:\n\n${voice}`;
         }
       }
-      const context: string[] = [];
+      const context: string[] = [...extra];
       if (ctxNote) {
         const s = await data.activeNoteContext();
         if (s) context.push(s);
@@ -526,6 +549,15 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
       if (ctxRecaps) {
         const s = await data.recentRecapsContext(7);
         if (s) context.push(s);
+      }
+      if (ctxGitHub && ghUser) {
+        try {
+          const gh = await getGitHubData(ghUser, plugin.settings.githubToken);
+          context.push(githubContext(gh));
+        } catch (e: any) {
+          // a GitHub outage shouldn't swallow the user's question
+          new Notice(`GitHub context unavailable: ${e.message}`, 5000);
+        }
       }
       if (context.length) {
         system += `\n\n---\n\nThe user attached the following context from their vault. Ground your answers in it — reference their actual notes, ideas, and statuses by name rather than giving generic advice.\n\n${context.join(
@@ -550,6 +582,64 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
     } finally {
       setDraft(null);
       setBusy(false);
+    }
+  };
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    setInput("");
+    void run(text);
+  };
+
+  /** Pull today's GitHub pushes + today's vault activity and ask for a recap. */
+  const summarizeToday = async () => {
+    if (busy) return;
+    // gathering happens before run() flips `busy`, so claim it up front to keep
+    // a second tap from firing a duplicate recap
+    setBusy(true);
+    const stamp = (window as any).moment().format("dddd, D MMMM YYYY");
+    const extra: string[] = [];
+    try {
+      if (ghUser) {
+        try {
+          const gh = await getGitHubData(ghUser, plugin.settings.githubToken);
+          extra.push(githubDayContext(gh));
+        } catch (e: any) {
+          new Notice(`GitHub unavailable, recapping the vault only: ${e.message}`, 5000);
+        }
+      }
+      extra.push(await data.todayWorkContext());
+    } finally {
+      setBusy(false);
+    }
+    await run(
+      `Summarize everything I got done today (${stamp}) using the GitHub and vault activity attached below.\n\n` +
+        `Write it as a daily work recap in Markdown:\n` +
+        `- Open with one sentence on the shape of the day.\n` +
+        `- "### Shipped" — what actually landed, grouped by project/repo. Translate commit messages into plain outcomes rather than repeating them verbatim.\n` +
+        `- "### In progress" — what moved but isn't done, including open PRs and notes still marked idea or in-progress.\n` +
+        `- "### Tomorrow" — 2-4 concrete next actions you can justify from the activity.\n\n` +
+        `Only state things the attached data supports. If a section has nothing, say so in one line instead of padding it.`,
+      extra
+    );
+  };
+
+  // Fire the recap when the command palette asks for one. The ref keeps a
+  // re-render (or StrictMode's double effect) from sending the prompt twice.
+  const lastRecap = useRef(0);
+  useEffect(() => {
+    if (recapNonce === 0 || recapNonce === lastRecap.current) return;
+    lastRecap.current = recapNonce;
+    void summarizeToday();
+  }, [recapNonce]);
+
+  const toDaily = async (content: string) => {
+    try {
+      const file = await data.saveRecap(content);
+      new Notice(`Recap saved to ${file.basename}`);
+    } catch (e: any) {
+      new Notice(`Couldn't save recap: ${e.message}`);
     }
   };
 
@@ -632,13 +722,31 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
           >
             📅 Last 7 recaps
           </button>
+          <button
+            className={`mch-chip ${ctxGitHub ? "is-on" : ""}`}
+            disabled={!ghUser}
+            title={
+              ghUser
+                ? "Repos, commits, open PRs, assigned issues and CI status"
+                : "Set your GitHub username in Settings to attach GitHub"
+            }
+            onClick={() => setCtxGitHub((v) => !v)}
+          >
+            🛠 GitHub
+          </button>
         </div>
+        <button className="mch-btn mch-btn-ghost mch-ctx-action" disabled={busy} onClick={summarizeToday}>
+          {busy ? "Working…" : "Summarize today"}
+        </button>
       </div>
 
       <div className="mch-ai-scroll" ref={scrollRef}>
         {messages.length === 0 && (
           <div className="mch-empty mch-ai-empty">
             Pick a brand context above and start a conversation.
+            <br />
+            Attach <b>🛠 GitHub</b> to let the AI see your repos, commits and open work — or hit{" "}
+            <b>Summarize today</b> for a recap of everything you shipped today.
             <br />
             Every chat can be saved straight into <b>05 - AI Transcripts</b>.
           </div>
@@ -661,6 +769,13 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
                       {a.short}
                     </button>
                   ))}
+                  <button
+                    className="mch-chip"
+                    title="Write this into today's daily note under ## 🧾 Recap"
+                    onClick={() => toDaily(m.content)}
+                  >
+                    📅 Daily note
+                  </button>
                 </div>
               </>
             ) : (
@@ -1593,9 +1708,7 @@ function InFlight({
     if (!gh || logging) return;
     setLogging(true);
     try {
-      const m = (window as any).moment;
-      const today = m().format("M/D");
-      const todays = gh.recent.filter((c) => c.when.startsWith(today + " "));
+      const todays = gh.todayCommits;
       if (todays.length === 0) {
         new Notice("No commits pushed today yet.");
         return;

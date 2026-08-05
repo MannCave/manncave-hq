@@ -7,6 +7,18 @@ import { SketchModal } from "./sketch";
 export default class MannCaveHQPlugin extends Plugin {
   settings: HQSettings;
 
+  /**
+   * Listeners for the "Summarize today's work" command. The dashboard's AI view
+   * stays mounted behind the tab switcher, so it can just subscribe here rather
+   * than needing the command to reach into React state.
+   */
+  private recapListeners = new Set<() => void>();
+
+  onRecapRequest(fn: () => void): () => void {
+    this.recapListeners.add(fn);
+    return () => this.recapListeners.delete(fn);
+  }
+
   async onload() {
     await this.loadSettings();
 
@@ -26,6 +38,15 @@ export default class MannCaveHQPlugin extends Plugin {
       id: "new-sketch",
       name: "New handwritten note",
       callback: () => new SketchModal(this).open(),
+    });
+
+    this.addCommand({
+      id: "summarize-today",
+      name: "Summarize today's work",
+      callback: async () => {
+        await this.activateView();
+        this.recapListeners.forEach((fn) => fn());
+      },
     });
 
     this.addSettingTab(new HQSettingTab(this.app, this));

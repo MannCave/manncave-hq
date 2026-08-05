@@ -15,6 +15,15 @@ export interface CommitItem {
   repo: string;
   message: string;
   when: string;
+  /** YYYY-MM-DD — lets callers filter to a specific day without parsing `when`. */
+  day: string;
+}
+
+/** A non-push thing that happened on a given day (PR opened/merged, tag, release, issue). */
+export interface DayEvent {
+  kind: string;
+  detail: string;
+  url: string;
 }
 
 export interface RepoCommits {
@@ -57,6 +66,10 @@ export interface GitHubData {
   commitsByDay: { date: string; label: string; count: number }[];
   commitsByRepo: RepoCommits[];
   recent: CommitItem[];
+  /** Every commit pushed today, uncapped — `recent` is trimmed for display. */
+  todayCommits: CommitItem[];
+  /** Today's PR / release / tag / issue activity. */
+  todayEvents: DayEvent[];
   openPRs: PullItem[];
   openIssues: IssueItem[];
   health: RepoHealth[];
@@ -151,7 +164,9 @@ export async function fetchGitHubData(username: string, token: string): Promise<
   for (let i = 13; i >= 0; i--) {
     days.set(m().subtract(i, "days").format("YYYY-MM-DD"), 0);
   }
+  const today = m().format("YYYY-MM-DD");
   const recent: CommitItem[] = [];
+  const todayCommits: CommitItem[] = [];
   const byRepo = new Map<string, number>();
   let commits30d = 0;
   let commits14d = 0;
@@ -166,11 +181,44 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     }
     if (m().diff(m(e.created_at), "days") <= 30) commits30d += commits.length;
     for (const c of commits) {
-      if (recent.length >= 12) break;
-      recent.push({
+      const item: CommitItem = {
         repo,
         message: String(c.message ?? "").split("\n")[0].slice(0, 88),
         when: m(e.created_at).format("M/D HH:mm"),
+        day,
+      };
+      if (recent.length < 12) recent.push(item);
+      // the day recap needs every commit, not just the 12 the table shows
+      if (day === today) todayCommits.push(item);
+    }
+  }
+
+  // PRs, releases and tags from today round out "what got done" beyond commits
+  const todayEvents: DayEvent[] = [];
+  for (const e of [...page1, ...page2] as any[]) {
+    if (m(e.created_at).format("YYYY-MM-DD") !== today) continue;
+    const repo = (e.repo?.name ?? "").split("/").pop() ?? "";
+    const p = e.payload ?? {};
+    if (e.type === "PullRequestEvent" && (p.action === "opened" || p.action === "closed")) {
+      const merged = !!p.pull_request?.merged;
+      todayEvents.push({
+        kind: merged ? "PR merged" : p.action === "opened" ? "PR opened" : "PR closed",
+        detail: `${repo} #${p.number} — ${p.pull_request?.title ?? ""}`,
+        url: p.pull_request?.html_url ?? "",
+      });
+    } else if (e.type === "ReleaseEvent" && p.action === "published") {
+      todayEvents.push({
+        kind: "Release",
+        detail: `${repo} ${p.release?.tag_name ?? ""}`,
+        url: p.release?.html_url ?? "",
+      });
+    } else if (e.type === "CreateEvent" && p.ref_type === "tag") {
+      todayEvents.push({ kind: "Tag", detail: `${repo} ${p.ref ?? ""}`, url: "" });
+    } else if (e.type === "IssuesEvent" && (p.action === "opened" || p.action === "closed")) {
+      todayEvents.push({
+        kind: p.action === "closed" ? "Issue closed" : "Issue opened",
+        detail: `${repo} #${p.issue?.number} — ${p.issue?.title ?? ""}`,
+        url: p.issue?.html_url ?? "",
       });
     }
   }
@@ -228,6 +276,8 @@ export async function fetchGitHubData(username: string, token: string): Promise<
   return {
     authenticated,
     privateRepos,
+    todayCommits,
+    todayEvents,
     openPRs,
     openIssues,
     health,
@@ -262,4 +312,92 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     })),
     recent,
   };
+}
+
+/**
+ * The GitHub picture as prose the AI can reason over.
+ *
+ * Deliberately names private repos: the token owner is the only reader, and
+ * withholding them would defeat the point of authenticating in the first place.
+ */
+export function githubContext(gh: GitHubData): string {
+  const lines: string[] = [];
+  lines.push(`### GitHub activity for ${gh.name}`);
+  lines.push(
+    `Repos: ${gh.publicRepos} total${gh.authenticated ? ` (${gh.privateRepos} private)` : " (public only — no token set)"}` +
+      ` · ${gh.totalStars} stars · commits: ${gh.commits14d} in 14d, ${gh.commits30d} in 30d` +
+      ` · ${gh.streakDays}-day push streak · ${gh.activeDays30} active days in 30d · ${gh.releases14d} releases in 14d`
+  );
+
+  if (gh.repos.length) {
+    lines.push("\nMost recently pushed repos:");
+    for (const r of gh.repos) {
+      lines.push(
+        `- ${r.name}${r.isPrivate ? " (private)" : ""} — ${r.language}, pushed ${r.pushedAt}` +
+          `${r.description ? `: ${r.description}` : ""}`
+      );
+    }
+  }
+
+  if (gh.commitsByRepo.length) {
+    lines.push(
+      `\nCommits per repo (14d): ${gh.commitsByRepo.map((r) => `${r.repo} ${r.count}`).join(", ")}`
+    );
+  }
+
+  if (gh.openPRs.length) {
+    lines.push("\nOpen pull requests:");
+    for (const p of gh.openPRs) {
+      lines.push(`- ${p.repo} #${p.number} — ${p.title} (${p.ageDays}d old${p.draft ? ", draft" : ""})`);
+    }
+  }
+
+  if (gh.openIssues.length) {
+    lines.push("\nIssues assigned to them:");
+    for (const it of gh.openIssues) {
+      lines.push(`- ${it.repo} #${it.number} — ${it.title} (${it.ageDays}d old)`);
+    }
+  }
+
+  if (gh.health.length) {
+    lines.push(
+      `\nLatest CI run per repo: ${gh.health.map((h) => `${h.repo} ${h.status}`).join(", ")}`
+    );
+  }
+
+  if (gh.recent.length) {
+    lines.push("\nRecent commits:");
+    for (const c of gh.recent) lines.push(`- [${c.when}] ${c.repo}: ${c.message}`);
+  }
+
+  return lines.join("\n");
+}
+
+/** Just today's GitHub output, for the day recap. */
+export function githubDayContext(gh: GitHubData): string {
+  const lines = [`### GitHub — today`];
+  if (!gh.authenticated) {
+    lines.push("(No token set, so private repo work is not visible here.)");
+  }
+  if (gh.todayCommits.length === 0 && gh.todayEvents.length === 0) {
+    lines.push("No commits pushed and no PR/release activity recorded today.");
+    return lines.join("\n");
+  }
+  if (gh.todayCommits.length) {
+    const byRepo = new Map<string, string[]>();
+    for (const c of gh.todayCommits) {
+      if (!byRepo.has(c.repo)) byRepo.set(c.repo, []);
+      byRepo.get(c.repo)!.push(c.message);
+    }
+    lines.push(`${gh.todayCommits.length} commits pushed across ${byRepo.size} repo(s):`);
+    for (const [repo, msgs] of byRepo) {
+      lines.push(`\n**${repo}** (${msgs.length}):`);
+      for (const msg of msgs) lines.push(`- ${msg}`);
+    }
+  }
+  if (gh.todayEvents.length) {
+    lines.push("\nOther activity today:");
+    for (const e of gh.todayEvents) lines.push(`- ${e.kind}: ${e.detail}`);
+  }
+  return lines.join("\n");
 }
