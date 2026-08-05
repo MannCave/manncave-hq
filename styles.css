@@ -1134,6 +1134,33 @@
 
 .mch-graph-tools { display: inline-flex; align-items: center; gap: 10px; }
 
+.mch-chip-auto {
+  border-color: color-mix(in srgb, var(--mch-accent) 45%, transparent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.mch-chip-auto.is-on {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mch-accent) 45%, transparent);
+}
+
+/* --- Dev: GitHub uplink --- */
+
+.mch-repo { align-items: baseline; }
+
+.mch-repo-desc { color: var(--mch-muted); font-size: 12px; }
+
+.mch-repo-private { font-size: 11px; }
+
+.mch-repo-meta {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--mch-muted);
+  white-space: nowrap;
+}
+
 .mch-graph-wrap canvas {
   width: 100%;
   display: block;

@@ -4,10 +4,11 @@ import type MannCaveHQPlugin from "../main";
 import type { UsageEntry } from "../settings";
 import { AREAS, AreaConfig, AreaSection, NoteInfo, VaultData } from "../vault";
 import { ChatMessage, getProvider } from "../ai";
+import { fetchGitHubData, GitHubData } from "../github";
 import { SketchModal } from "../sketch";
 import { AreaMotif, Reactor, LiveDot, Cursor } from "./motifs";
 
-type TabId = "today" | "wwp" | "kingdom" | "manncave" | "mccrv" | "grid" | "ai";
+type TabId = "today" | "wwp" | "kingdom" | "manncave" | "mccrv" | "grid" | "dev" | "ai";
 
 const TABS: { id: TabId; label: string; accent: string }[] = [
   { id: "today", label: "Today", accent: "amber" },
@@ -16,6 +17,7 @@ const TABS: { id: TabId; label: string; accent: string }[] = [
   { id: "manncave", label: "MannCave", accent: "ember" },
   { id: "mccrv", label: "MCCRV", accent: "route" },
   { id: "grid", label: "Grid", accent: "ice" },
+  { id: "dev", label: "Dev", accent: "violet" },
   { id: "ai", label: "AI", accent: "ice" },
 ];
 
@@ -91,6 +93,7 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
         {tab === "manncave" && <AreaView data={data} plugin={plugin} area={AREAS[2]} />}
         {tab === "mccrv" && <AreaView data={data} plugin={plugin} area={AREAS[3]} />}
         {tab === "grid" && <GridView data={data} plugin={plugin} />}
+        {tab === "dev" && <DevView plugin={plugin} />}
         <div style={{ display: tab === "ai" ? undefined : "none" }}>
           <AIView data={data} plugin={plugin} />
         </div>
@@ -111,15 +114,57 @@ function TodayView({
   onOpenArea: (id: TabId) => void;
 }) {
   const [text, setText] = useState("");
-  const [target, setTarget] = useState(0);
+  const [target, setTarget] = useState(-1); // -1 = AUTO: the AI routes the capture
   const [busy, setBusy] = useState(false);
+
+  const routeAuto = async (raw: string) => {
+    const provider = getProvider(plugin.settings);
+    const system = "You route captured text inside a personal dashboard. You reply with ONLY a JSON object — no prose.";
+    const prompt = `Route this captured text:\n"""${raw}"""\n\nBrands: wwp = WorldWidePeptides (peptide/supplement company), kingdom = Kingdom Athletics (faith + fitness apparel brand), manncave = MannCave Media (podcast/streaming/content), mccrv = McClainsRV (RV dealership day job).\n\nPick ONE destination:\n- {"dest":"notes"} — general thought or note\n- {"dest":"wwp"|"kingdom"|"manncave"|"mccrv"} — work-log line for that brand's section of today's daily note\n- {"dest":"personal"} — personal life\n- {"dest":"wins"} — a completed accomplishment worth celebrating\n- {"dest":"idea","area":"wwp"|"kingdom"|"manncave"|"mccrv","title":"<short note title>"} — a content/product idea worth its own note in that brand's Content Hub\n\nReply with ONLY the JSON object.`;
+    const result = await provider.chat(system, [{ role: "user", content: prompt }]);
+    plugin.recordUsage(provider.label, provider.modelName, result.usage);
+    const match = result.text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("no routing decision");
+    const route = JSON.parse(match[0]) as { dest?: string; area?: string; title?: string };
+    if (route.dest === "idea") {
+      const area = AREAS.find((a) => a.id === route.area);
+      if (!area) throw new Error("unknown area");
+      const title = (route.title ?? "").trim();
+      await data.sendToContentHub(area, title ? `${title}\n${raw}` : raw);
+      return `${area.short} Content Hub (new idea)`;
+    }
+    const targetDef = CAPTURE_TARGETS.find((t) => {
+      if (route.dest === "notes") return t.label === "Notes";
+      if (route.dest === "wins") return t.label === "Wins";
+      if (route.dest === "personal") return t.label === "Personal";
+      if (route.dest === "wwp") return t.label === "WWP";
+      if (route.dest === "kingdom") return t.label === "KA";
+      if (route.dest === "manncave") return t.label === "MannCave";
+      if (route.dest === "mccrv") return t.label === "MCCRV";
+      return false;
+    });
+    if (!targetDef) throw new Error("unknown destination");
+    await data.quickCapture(raw, targetDef.header);
+    return `daily log → ${targetDef.label}`;
+  };
 
   const capture = async () => {
     if (!text.trim() || busy) return;
     setBusy(true);
+    const raw = text.trim();
     try {
-      await data.quickCapture(text.trim(), CAPTURE_TARGETS[target].header);
-      new Notice(`Captured to ${CAPTURE_TARGETS[target].label}`);
+      if (target === -1) {
+        try {
+          const where = await routeAuto(raw);
+          new Notice(`AUTO ROUTED → ${where}`);
+        } catch (e: any) {
+          await data.quickCapture(raw, "## 📝 Notes & Thoughts");
+          new Notice(`Auto-routing unavailable (${e.message}) — captured to Notes`, 5000);
+        }
+      } else {
+        await data.quickCapture(raw, CAPTURE_TARGETS[target].header);
+        new Notice(`Captured to ${CAPTURE_TARGETS[target].label}`);
+      }
       setText("");
     } catch (e: any) {
       new Notice(`Capture failed: ${e.message}`);
@@ -199,6 +244,13 @@ function TodayView({
         </div>
         <div className="mch-row">
           <div className="mch-chips">
+            <button
+              className={`mch-chip mch-chip-auto ${target === -1 ? "is-on" : ""}`}
+              title="The AI decides where this goes — daily log section, Wins, or a brand's Content Hub"
+              onClick={() => setTarget(-1)}
+            >
+              ✦ AUTO
+            </button>
             {CAPTURE_TARGETS.map((t, i) => (
               <button
                 key={t.label}
@@ -210,7 +262,7 @@ function TodayView({
             ))}
           </div>
           <button className="mch-btn" disabled={!text.trim() || busy} onClick={capture}>
-            EXECUTE
+            {busy && target === -1 ? "ROUTING…" : "EXECUTE"}
           </button>
         </div>
       </section>
@@ -1130,5 +1182,153 @@ function LinkForge({
         </ul>
       )}
     </section>
+  );
+}
+
+/* ---------- Dev: GitHub uplink ---------- */
+
+const COMMIT_BAR = "#7950d8";
+
+function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
+  const [gh, setGh] = useState<GitHubData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [gen, setGen] = useState(0);
+  const user = plugin.settings.githubUser;
+
+  useEffect(() => {
+    if (!user) return;
+    let dead = false;
+    setLoading(true);
+    setErr(null);
+    fetchGitHubData(user, plugin.settings.githubToken)
+      .then((d) => !dead && setGh(d))
+      .catch((e) => !dead && setErr(e.message))
+      .finally(() => !dead && setLoading(false));
+    return () => {
+      dead = true;
+    };
+  }, [gen, user, plugin]);
+
+  const W = 560, H = 150, padL = 34, padT = 8, padB = 20;
+  const plotW = W - padL - 6;
+  const plotH = H - padT - padB;
+  const slot = plotW / 14;
+  const bw = Math.max(8, Math.floor(slot) - 5);
+  const max = gh ? Math.max(4, ...gh.commitsByDay.map((d) => d.count)) : 4;
+
+  return (
+    <div className="mch-stack mch-hud-zone mch-boot" data-accent="violet">
+      <div className="mch-hud-top">
+        <span className="mch-hud-tag"><span className="mch-hud-pip" />REPO UPLINK ONLINE</span>
+        <span className="mch-hud-tag mch-dim">SECTOR 06 // DEV</span>
+      </div>
+
+      <section className="mch-hud-card" data-accent="violet">
+        <div className="mch-hud-card-head">
+          <span>GITHUB UPLINK{gh ? ` // ${gh.name.toUpperCase()}` : ""}</span>
+          <span className="mch-graph-tools">
+            <button className="mch-btn mch-btn-ghost" disabled={loading} onClick={() => setGen((g) => g + 1)}>
+              {loading ? "SYNCING…" : "REFRESH"}
+            </button>
+            <span className="mch-hud-id">MOD-08</span>
+          </span>
+        </div>
+        {!user && (
+          <div className="mch-empty">Set your GitHub username in Settings → MannCave HQ to bring the uplink online.</div>
+        )}
+        {err && <div className="mch-empty">Uplink error: {err}</div>}
+        {gh && (
+          <>
+            <div className="mch-readouts">
+              <span><b>{gh.publicRepos}</b>REPOS</span>
+              <span><b>{gh.totalStars}</b>STARS</span>
+              <span><b>{gh.followers}</b>FOLLOWERS</span>
+              <span><b>{gh.commits30d}</b>COMMITS 30D</span>
+            </div>
+            <ul className="mch-list">
+              {gh.repos.map((r) => (
+                <li key={r.fullName}>
+                  <button className="mch-note mch-repo" onClick={() => window.open(r.url)}>
+                    <span className="mch-note-title">
+                      {r.name}
+                      {r.isPrivate && <span className="mch-repo-private"> 🔒</span>}
+                      {r.description && <span className="mch-repo-desc"> — {r.description}</span>}
+                    </span>
+                    <span className="mch-repo-meta">
+                      {r.language} · ★{r.stars} · {r.pushedAt}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      <section className="mch-hud-card" data-accent="violet">
+        <div className="mch-hud-card-head">
+          <span>COMMIT PULSE // LAST 14 DAYS</span>
+          <span className="mch-hud-id">MOD-09</span>
+        </div>
+        {gh && gh.commitsByDay.every((d) => d.count === 0) && (
+          <div className="mch-empty">No pushes detected in the last two weeks — the forge awaits.</div>
+        )}
+        {gh && gh.commitsByDay.some((d) => d.count > 0) && (
+          <svg
+            className="mch-chart"
+            viewBox={`0 0 ${W} ${H}`}
+            role="img"
+            aria-label="Commits pushed per day over the last 14 days"
+          >
+            <line x1={padL} x2={W - 4} y1={padT + plotH} y2={padT + plotH} stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
+            <line x1={padL} x2={W - 4} y1={padT + plotH / 2} y2={padT + plotH / 2} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+            <text x={padL - 6} y={padT + plotH / 2 + 3} textAnchor="end" className="mch-chart-tick">{Math.round(max / 2)}</text>
+            <text x={padL - 6} y={padT + 3} textAnchor="end" className="mch-chart-tick">{max}</text>
+            {gh.commitsByDay.map((d, i) => {
+              const h = (plotH * d.count) / max;
+              return (
+                <g key={d.date}>
+                  {d.count > 0 && (
+                    <rect
+                      x={padL + i * slot + (slot - bw) / 2}
+                      y={padT + plotH - h}
+                      width={bw}
+                      height={Math.max(1, h)}
+                      rx="1"
+                      fill={COMMIT_BAR}
+                    >
+                      <title>{`${d.date} — ${d.count} commit${d.count === 1 ? "" : "s"}`}</title>
+                    </rect>
+                  )}
+                  {i % 2 === 1 && (
+                    <text x={padL + i * slot + slot / 2} y={H - 6} textAnchor="middle" className="mch-chart-tick">
+                      {d.label}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+        {gh && gh.recent.length > 0 && (
+          <table className="mch-usage-table">
+            <thead>
+              <tr><th>RECENT PUSHES</th><th></th><th className="num">WHEN</th></tr>
+            </thead>
+            <tbody>
+              {gh.recent.map((c, i) => (
+                <tr key={i}>
+                  <td>{c.repo}</td>
+                  <td>{c.message}</td>
+                  <td className="num">{c.when}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {loading && !gh && <div className="mch-empty">Contacting GitHub…</div>}
+      </section>
+    </div>
   );
 }
