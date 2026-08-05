@@ -17,15 +17,40 @@ export interface CommitItem {
   when: string;
 }
 
+export interface RepoCommits {
+  repo: string;
+  count: number;
+}
+
 export interface GitHubData {
   name: string;
   publicRepos: number;
   followers: number;
   totalStars: number;
   commits30d: number;
+  commits14d: number;
   repos: RepoInfo[];
   commitsByDay: { date: string; label: string; count: number }[];
+  commitsByRepo: RepoCommits[];
   recent: CommitItem[];
+}
+
+let cache: { key: string; at: number; data: GitHubData } | null = null;
+const TTL = 5 * 60 * 1000;
+
+/** Cached wrapper so the Today snapshot and Dev tab share one round trip. */
+export async function getGitHubData(
+  username: string,
+  token: string,
+  force = false
+): Promise<GitHubData> {
+  const key = `${username}|${token ? "t" : ""}`;
+  if (!force && cache && cache.key === key && Date.now() - cache.at < TTL) {
+    return cache.data;
+  }
+  const data = await fetchGitHubData(username, token);
+  cache = { key, at: Date.now(), data };
+  return data;
 }
 
 /** Pull profile, repos, and push activity for the dashboard. Token optional
@@ -56,16 +81,23 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     days.set(m().subtract(i, "days").format("YYYY-MM-DD"), 0);
   }
   const recent: CommitItem[] = [];
+  const byRepo = new Map<string, number>();
   let commits30d = 0;
+  let commits14d = 0;
   for (const e of pushes) {
     const day = m(e.created_at).format("YYYY-MM-DD");
     const commits = e.payload?.commits ?? [];
-    if (days.has(day)) days.set(day, (days.get(day) ?? 0) + commits.length);
+    const repo = (e.repo?.name ?? "").split("/").pop() ?? "";
+    if (days.has(day)) {
+      days.set(day, (days.get(day) ?? 0) + commits.length);
+      commits14d += commits.length;
+      if (repo) byRepo.set(repo, (byRepo.get(repo) ?? 0) + commits.length);
+    }
     if (m().diff(m(e.created_at), "days") <= 30) commits30d += commits.length;
     for (const c of commits) {
       if (recent.length >= 12) break;
       recent.push({
-        repo: (e.repo?.name ?? "").split("/").pop() ?? "",
+        repo,
         message: String(c.message ?? "").split("\n")[0].slice(0, 88),
         when: m(e.created_at).format("M/D HH:mm"),
       });
@@ -78,6 +110,10 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     followers: user.followers ?? 0,
     totalStars: (repos as any[]).reduce((n, r) => n + (r.stargazers_count ?? 0), 0),
     commits30d,
+    commits14d,
+    commitsByRepo: [...byRepo.entries()]
+      .map(([repo, count]) => ({ repo, count }))
+      .sort((a, b) => b.count - a.count),
     repos: (repos as any[]).slice(0, 8).map((r) => ({
       name: r.name,
       fullName: r.full_name,

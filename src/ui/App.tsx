@@ -4,7 +4,8 @@ import type MannCaveHQPlugin from "../main";
 import type { UsageEntry } from "../settings";
 import { AREAS, AreaConfig, AreaSection, NoteInfo, VaultData } from "../vault";
 import { ChatMessage, getProvider } from "../ai";
-import { fetchGitHubData, GitHubData } from "../github";
+import { fetchGitHubData, getGitHubData, GitHubData } from "../github";
+import { buildGraph, drawGraph, GNode, GRAPH_GROUPS, seedLayout, stepLayout } from "../graph";
 import { SketchModal } from "../sketch";
 import { AreaMotif, Reactor, LiveDot, Cursor } from "./motifs";
 
@@ -182,29 +183,27 @@ function TodayView({
 
       <div className="mch-hud-hero">
         <Reactor />
-        <div className="mch-hud-modules">
+        <div className="mch-sectors">
           {AREAS.map((area, i) => {
             const c = data.countByStatus(area);
             const load = c.total ? Math.round((c.active / c.total) * 100) : 0;
             return (
               <button
                 key={area.id}
-                className="mch-hud-card mch-hud-module"
+                className="mch-sector"
                 data-accent={AREA_ACCENT[area.id]}
                 onClick={() => onOpenArea(area.id as TabId)}
               >
-                <div className="mch-hud-card-head">
-                  <span>{area.short.toUpperCase()}</span>
-                  <span className="mch-hud-id">MOD-0{i + 1}</span>
-                </div>
-                <div className="mch-readouts">
-                  <span><b>{c.active}</b>ACT</span>
-                  <span><b>{c.ideas}</b>IDE</span>
-                  <span><b>{c.total}</b>TOT</span>
-                </div>
-                <div className="mch-meter">
-                  <div className="mch-meter-fill" style={{ width: `${load}%` }} />
-                </div>
+                <span className="mch-sector-head">
+                  <span className="mch-sector-name">{area.short.toUpperCase()}</span>
+                  <span className="mch-sector-id">0{i + 2}</span>
+                </span>
+                <span className="mch-sector-nums">
+                  <b>{c.active}</b> ACTIVE <b>{c.ideas}</b> IDEAS
+                </span>
+                <span className="mch-meter">
+                  <span className="mch-meter-fill" style={{ width: `${load}%` }} />
+                </span>
               </button>
             );
           })}
@@ -222,7 +221,7 @@ function TodayView({
               className="mch-btn mch-btn-ghost"
               onClick={async () => data.openFile(await data.getOrCreateToday())}
             >
-              OPEN DAILY LOG →
+              DAILY LOG →
             </button>
           </span>
         </div>
@@ -267,7 +266,11 @@ function TodayView({
         </div>
       </section>
 
-      <UsagePanel plugin={plugin} />
+      <div className="mch-snap-grid">
+        <DevSnapshot plugin={plugin} onOpen={() => onOpenArea("dev")} />
+        <UsageSnapshot plugin={plugin} />
+        <MiniGraph plugin={plugin} onOpen={() => onOpenArea("grid")} />
+      </div>
     </div>
   );
 }
@@ -641,17 +644,6 @@ function AIView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin })
 const USAGE_IN = "#2b97c8";
 const USAGE_OUT = "#c98007";
 
-// First entries follow AREAS order; OTHER also absorbs AI transcripts so the
-// colored series stay within the validated palette.
-const GRAPH_GROUPS: { label: string; color: string; square?: boolean }[] = [
-  { label: "WWP", color: "#a29433" },
-  { label: "KA", color: "#d14a12", square: true },
-  { label: "MCM", color: "#bd1373" },
-  { label: "MCCRV", color: "#7950d8" },
-  { label: "DAILY", color: "#2b97c8" },
-  { label: "OTHER", color: "#5c6472" },
-];
-
 function fmtTok(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
@@ -669,6 +661,7 @@ function GridView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin 
       </div>
       <VaultGraph data={data} plugin={plugin} scan={scan} onRescan={rescan} />
       <LinkForge data={data} plugin={plugin} onLinked={rescan} />
+      <UsagePanel plugin={plugin} />
     </div>
   );
 }
@@ -819,26 +812,6 @@ function UsagePanel({ plugin }: { plugin: MannCaveHQPlugin }) {
   );
 }
 
-interface GNode {
-  id: string;
-  title: string;
-  group: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  degree: number;
-}
-
-function hash01(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return ((h >>> 0) % 10000) / 10000;
-}
-
 function VaultGraph({
   data,
   plugin,
@@ -868,137 +841,24 @@ function VaultGraph({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const s = plugin.settings;
-    const groupOf = (path: string): number => {
-      for (let i = 0; i < AREAS.length; i++) {
-        if (path.startsWith(AREAS[i].root + "/")) return i;
-      }
-      if (path.startsWith(s.dailyFolder + "/")) return AREAS.length;
-      return AREAS.length + 1;
-    };
-
-    let nodes: GNode[] = plugin.app.vault.getMarkdownFiles().map((f) => ({
-      id: f.path,
-      title: f.basename,
-      group: groupOf(f.path),
-      x: 0, y: 0, vx: 0, vy: 0,
-      degree: 0,
-    }));
-    const index = new Map(nodes.map((n) => [n.id, n]));
-    const seen = new Set<string>();
-    let links: [GNode, GNode][] = [];
-    for (const [src, targets] of Object.entries(plugin.app.metadataCache.resolvedLinks)) {
-      const a = index.get(src);
-      if (!a) continue;
-      for (const t of Object.keys(targets)) {
-        const b = index.get(t);
-        if (!b || b === a) continue;
-        const key = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        links.push([a, b]);
-        a.degree++;
-        b.degree++;
-      }
-    }
-    // keep the sim responsive on large vaults
-    if (nodes.length > 450) {
-      nodes = [...nodes].sort((a, b) => b.degree - a.degree).slice(0, 450);
-      const keep = new Set(nodes.map((n) => n.id));
-      links = links.filter(([a, b]) => keep.has(a.id) && keep.has(b.id));
-    }
-    setMeta({ nodes: nodes.length, links: links.length });
-    setCounts(GRAPH_GROUPS.map((_, gi) => nodes.filter((n) => n.group === gi).length));
-
-    const cx = W / 2, cy = H / 2;
-    const anchors = GRAPH_GROUPS.map((_, i) => {
-      const ang = (i / GRAPH_GROUPS.length) * Math.PI * 2 - Math.PI / 2;
-      return [cx + Math.cos(ang) * Math.min(W, H) * 0.27, cy + Math.sin(ang) * Math.min(W, H) * 0.27];
-    });
-    for (const n of nodes) {
-      const [ax, ay] = anchors[n.group];
-      const ang = hash01(n.id) * Math.PI * 2;
-      const r = hash01(n.id + "r") * 60;
-      n.x = ax + Math.cos(ang) * r;
-      n.y = ay + Math.sin(ang) * r;
-    }
-
-    const radius = (n: GNode) => 2.5 + Math.min(6, Math.sqrt(n.degree) * 1.4);
-
-    const tickSim = () => {
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i], b = nodes[j];
-          let dx = b.x - a.x, dy = b.y - a.y;
-          let d2 = dx * dx + dy * dy;
-          if (d2 < 1) { dx = hash01(a.id) - 0.5; dy = 0.5; d2 = 1; }
-          if (d2 > 22500) continue;
-          const d = Math.sqrt(d2);
-          const f = 700 / d2;
-          const fx = (dx / d) * f, fy = (dy / d) * f;
-          a.vx -= fx; a.vy -= fy;
-          b.vx += fx; b.vy += fy;
-        }
-      }
-      for (const [a, b] of links) {
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.max(1, Math.hypot(dx, dy));
-        const f = (d - 48) * 0.015;
-        const fx = (dx / d) * f, fy = (dy / d) * f;
-        a.vx += fx; a.vy += fy;
-        b.vx -= fx; b.vy -= fy;
-      }
-      for (const n of nodes) {
-        const [ax, ay] = anchors[n.group];
-        n.vx += (ax - n.x) * 0.006 + (cx - n.x) * 0.004;
-        n.vy += (ay - n.y) * 0.006 + (cy - n.y) * 0.004;
-        n.vx *= 0.82; n.vy *= 0.82;
-        n.x += Math.max(-5, Math.min(5, n.vx));
-        n.y += Math.max(-5, Math.min(5, n.vy));
-        n.x = Math.max(8, Math.min(W - 8, n.x));
-        n.y = Math.max(8, Math.min(H - 8, n.y));
-      }
-    };
-
-    const draw = () => {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = "rgba(139, 146, 165, 0.15)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (const [a, b] of links) {
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-      }
-      ctx.stroke();
-      for (const n of nodes) {
-        const g = GRAPH_GROUPS[n.group];
-        const r = radius(n);
-        ctx.shadowBlur = n.degree >= 6 ? 9 : 0;
-        ctx.shadowColor = g.color;
-        ctx.fillStyle = g.color;
-        ctx.strokeStyle = "#05060a";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        if (g.square) ctx.rect(n.x - r, n.y - r, r * 2, r * 2);
-        else ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-    };
+    const model = buildGraph(plugin.app, plugin.settings);
+    setMeta({ nodes: model.nodes.length, links: model.links.length });
+    setCounts(model.counts);
+    const anchors = seedLayout(model, W, H);
 
     const TOTAL = 240;
     let raf = 0;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      for (let i = 0; i < TOTAL; i++) tickSim();
-      draw();
+      for (let i = 0; i < TOTAL; i++) stepLayout(model, anchors, W, H);
+      drawGraph(ctx, model, W, H, dpr);
     } else {
       let ticks = 0;
       const step = () => {
-        tickSim(); tickSim(); tickSim();
+        stepLayout(model, anchors, W, H);
+        stepLayout(model, anchors, W, H);
+        stepLayout(model, anchors, W, H);
         ticks += 3;
-        draw();
+        drawGraph(ctx, model, W, H, dpr);
         if (ticks < TOTAL) raf = requestAnimationFrame(step);
       };
       raf = requestAnimationFrame(step);
@@ -1006,12 +866,16 @@ function VaultGraph({
 
     const pick = (ev: MouseEvent): GNode | null => {
       const rect = canvas.getBoundingClientRect();
-      const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
       let best: GNode | null = null;
       let bd = 196;
-      for (const n of nodes) {
+      for (const n of model.nodes) {
         const d = (n.x - x) ** 2 + (n.y - y) ** 2;
-        if (d < bd) { bd = d; best = n; }
+        if (d < bd) {
+          bd = d;
+          best = n;
+        }
       }
       return best;
     };
@@ -1330,5 +1194,170 @@ function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
         {loading && !gh && <div className="mch-empty">Contacting GitHub…</div>}
       </section>
     </div>
+  );
+}
+
+/* ---------- Home snapshots ---------- */
+
+/** Thin bar sparkline — shared by the dev and usage snapshots. */
+function Spark({ values, color }: { values: number[]; color: string }) {
+  const max = Math.max(1, ...values);
+  const W = 120;
+  const H = 26;
+  const slot = W / values.length;
+  const bw = Math.max(2, slot - 2);
+  return (
+    <svg className="mch-spark" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      {values.map((v, i) => {
+        const h = v > 0 ? Math.max(1.5, (H * v) / max) : 0;
+        return h > 0 ? (
+          <rect key={i} x={i * slot + (slot - bw) / 2} y={H - h} width={bw} height={h} rx="1" fill={color} />
+        ) : null;
+      })}
+    </svg>
+  );
+}
+
+function DevSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () => void }) {
+  const [gh, setGh] = useState<GitHubData | null>(null);
+  const [err, setErr] = useState(false);
+  const user = plugin.settings.githubUser;
+
+  useEffect(() => {
+    if (!user) return;
+    let dead = false;
+    getGitHubData(user, plugin.settings.githubToken)
+      .then((d) => !dead && setGh(d))
+      .catch(() => !dead && setErr(true));
+    return () => {
+      dead = true;
+    };
+  }, [user, plugin]);
+
+  return (
+    <button className="mch-snap" data-accent="violet" onClick={onOpen}>
+      <span className="mch-snap-head">
+        <span>DEV PULSE</span>
+        <span className="mch-snap-more">DEV →</span>
+      </span>
+      {!user || err ? (
+        <span className="mch-snap-empty">{err ? "uplink unavailable" : "set GitHub user in settings"}</span>
+      ) : !gh ? (
+        <span className="mch-snap-empty">syncing…</span>
+      ) : (
+        <>
+          <span className="mch-snap-hero">
+            <b>{gh.commits14d}</b>
+            <span className="mch-snap-unit">commits · 14d</span>
+            <Spark values={gh.commitsByDay.map((d) => d.count)} color={COMMIT_BAR} />
+          </span>
+          <span className="mch-snap-rows">
+            {gh.commitsByRepo.slice(0, 4).map((r) => (
+              <span key={r.repo} className="mch-snap-row">
+                <span className="mch-snap-label">{r.repo}</span>
+                <span className="mch-snap-val">{r.count}</span>
+              </span>
+            ))}
+            {gh.commitsByRepo.length === 0 && (
+              <span className="mch-snap-empty">no pushes in the last 14 days</span>
+            )}
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
+function UsageSnapshot({ plugin }: { plugin: MannCaveHQPlugin }) {
+  const m = (window as any).moment;
+  const log = plugin.settings.usageLog ?? {};
+  const series: number[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const date = m().subtract(i, "days").format("YYYY-MM-DD");
+    let t = 0;
+    for (const e of Object.values(log[date] ?? {})) t += e.in + e.out;
+    series.push(t);
+  }
+  const today = series[series.length - 1];
+  const week = series.slice(7).reduce((n, v) => n + v, 0);
+  const models = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    const d = m().subtract(i, "days").format("YYYY-MM-DD");
+    for (const k of Object.keys(log[d] ?? {})) models.add(k);
+  }
+  const active = [...models][0] ?? "—";
+
+  return (
+    <div className="mch-snap" data-accent="ice">
+      <span className="mch-snap-head">
+        <span>TOKEN FLOW</span>
+        <span className="mch-snap-more">GRID →</span>
+      </span>
+      {series.every((v) => v === 0) ? (
+        <span className="mch-snap-empty">no API calls recorded yet</span>
+      ) : (
+        <>
+          <span className="mch-snap-hero">
+            <b>{fmtTok(today)}</b>
+            <span className="mch-snap-unit">tokens · today</span>
+            <Spark values={series} color={USAGE_IN} />
+          </span>
+          <span className="mch-snap-rows">
+            <span className="mch-snap-row">
+              <span className="mch-snap-label">last 7 days</span>
+              <span className="mch-snap-val">{fmtTok(week)}</span>
+            </span>
+            <span className="mch-snap-row">
+              <span className="mch-snap-label">active model</span>
+              <span className="mch-snap-val mch-snap-model">{active.split(" · ").pop()}</span>
+            </span>
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () => void }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [meta, setMeta] = useState({ nodes: 0, links: 0 });
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const W = Math.max(180, wrap.clientWidth);
+    const H = 132;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.height = `${H}px`;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // smaller cap: this is an ambient view, not the working map
+    const model = buildGraph(plugin.app, plugin.settings, 160);
+    setMeta({ nodes: model.nodes.length, links: model.links.length });
+    const anchors = seedLayout(model, W, H);
+    for (let i = 0; i < 170; i++) stepLayout(model, anchors, W, H);
+    drawGraph(ctx, model, W, H, dpr, { scale: 0.62, glow: false });
+  }, [plugin]);
+
+  return (
+    <button className="mch-snap mch-snap-graph" data-accent="ice" onClick={onOpen}>
+      <span className="mch-snap-head">
+        <span>NEURAL MAP</span>
+        <span className="mch-snap-more">GRID →</span>
+      </span>
+      <span className="mch-minigraph" ref={wrapRef}>
+        <canvas ref={canvasRef} />
+      </span>
+      <span className="mch-snap-rows">
+        <span className="mch-snap-row">
+          <span className="mch-snap-label">{meta.nodes} notes</span>
+          <span className="mch-snap-val">{meta.links} links</span>
+        </span>
+      </span>
+    </button>
   );
 }

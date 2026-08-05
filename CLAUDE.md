@@ -13,7 +13,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.12.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.13.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -21,7 +21,8 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - `src/vault.ts` — vault data layer: AREAS config, note listing via metadataCache frontmatter, template-based note creation, daily-note quick capture, transcript saving
 - `src/ai.ts` — AIProvider interface + Anthropic/OpenAICompat/Ollama adapters (uses Obsidian `requestUrl`, never fetch, to avoid CORS)
 - `src/sketch.ts` — SketchModal: pointer-drawn canvas (pen pressure, eraser, undo), exports PNG with baked dark background + companion note, files to Daily or an area's Sketches folder
-- `src/github.ts` — GitHub REST client (requestUrl): profile/repos/push events → Dev tab data (optional fine-grained PAT in settings)
+- `src/github.ts` — GitHub REST client (requestUrl): profile/repos/push events → Dev tab data (optional fine-grained PAT in settings); `getGitHubData` adds a 5-min shared cache so Today + Dev share one round trip
+- `src/graph.ts` — vault link-graph engine shared by the full Neural Map and the home mini-map: `buildGraph` / `seedLayout` / `stepLayout` / `drawGraph` + `GRAPH_GROUPS`
 - `src/view.tsx` — ItemView hosting React root
 - `src/ui/App.tsx` — tabs: Today (HUD), 3 area views, AI chat
 - `src/ui/motifs.tsx` — Reactor, PeptideChain, CrownMark, Waveform, LiveDot, Cursor
@@ -53,6 +54,7 @@ Shipped in 0.7.0: NVIDIA (build.nvidia.com) as a fourth provider with its own ke
 Shipped in 0.8.0: brand theme overhaul — WWP black & gold, KA grungy industrial ("KA" shorthand everywhere), MannCave scanline banner, per-area HUD status lines.
 Shipped in 0.9.0: Grid tab — TOKEN FLOW (per-request token usage recorded to data.json via provider-reported usage with char/4 estimation fallback; 14-day stacked bars + per-model 7d table, 90-day retention) and NEURAL MAP (canvas force-directed graph of vault links from metadataCache.resolvedLinks, colored by area, KA nodes square, click-to-open, 450-node cap). Chart palette steps validated for CVD/contrast on the dark surface.
 Shipped in 0.10.0: LINK FORGE on the Grid tab — AI scans the 80 most recent notes (excluding templates and hub/overview/info) and proposes up to 8 new note pairs with reasons; accepting writes a wikilink (fileManager.generateMarkdownLink) under a "## Related" section in the source note and refreshes the Neural Map. Suggestions are validated against exact paths and existing links; usage is recorded to TOKEN FLOW.
+Shipped in 0.13.0: home page rebuilt as the one-stop view — arc reactor + 2×2 sector switcher (per-area active/idea counts + load meter, tap to jump), command console, then a snapshot strip of DEV PULSE (14d commit count + sparkline + per-repo commit counts), TOKEN FLOW (today's tokens + sparkline + 7d total + active model) and a static NEURAL MAP mini-canvas; snapshot cards deep-link to their full tabs. Full TOKEN FLOW panel returned to Grid. Graph engine extracted to `src/graph.ts`; minimal pass lightens Today's card chrome (thinner bracket corners, quieter heads).
 Shipped in 0.12.0: Dev tab (GITHUB UPLINK: profile readouts + 8 most recent repos; COMMIT PULSE: commits/day 14-day chart from push events + recent-pushes table; settings for username + optional PAT) and AUTO capture routing — the command console defaults to an ✦ AUTO chip where the AI classifies each capture into a daily-note section, Wins, or a brand's Content Hub as a new idea note (JSON classification via active provider, fallback to Notes on failure, usage recorded). DeepSeek documented as compat-provider option (base URL api.deepseek.com).
 Shipped in 0.11.1: TOKEN FLOW moved from the Grid tab to the Today (home) tab, below the command console; Grid keeps NEURAL MAP + LINK FORGE.
 Shipped in 0.11.0: McClainsRV (MCCRV) as a fourth brand area (tab, highway theme, Today module MOD-04, capture chip, AI chip, Content Hub, graph group) + handwritten notes: SketchModal canvas (finger/Pencil, pressure, six inks, eraser/undo/clear) saving PNG + companion note (`type: sketch`) into `<root>/Sketches/`, or embedding into today's daily log; opens from Today console, area banners, or the "New handwritten note" command.
