@@ -387,6 +387,18 @@
   cursor: default;
 }
 
+/* pushed to the far end of the context bar; wraps under the chips on phones */
+.mch-ctx-action {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .mch-ctx-action {
+    margin-left: 0;
+  }
+}
+
 .mch-model {
   font-size: 11px;
   color: var(--mch-muted);

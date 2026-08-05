@@ -332,6 +332,82 @@ export class VaultData {
     return parts.join("\n\n");
   }
 
+  /**
+   * Everything in the vault that moved today, for the day recap: notes created
+   * or edited since midnight (grouped by area, with type + status) and the raw
+   * body of today's daily note.
+   */
+  async todayWorkContext(): Promise<string> {
+    const m = this.moment();
+    const midnight = m().startOf("day").valueOf();
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => f.stat.mtime >= midnight)
+      .filter((f) => !f.path.startsWith(this.plugin.settings.templatesFolder + "/"))
+      .sort((a, b) => a.stat.mtime - b.stat.mtime);
+
+    const byArea = new Map<string, string[]>();
+    for (const f of files) {
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+      if (fm.type === "hub" || fm.type === "overview" || fm.type === "info") continue;
+      const area = AREAS.find((a) => a.id === fm.area);
+      const bucket = area?.short ?? (f.path.startsWith(this.plugin.settings.dailyFolder) ? "Daily" : "Other");
+      const created = f.stat.ctime >= midnight ? "new" : "edited";
+      const bits = [fm.type, fm.status].filter(Boolean).join(", ");
+      if (!byArea.has(bucket)) byArea.set(bucket, []);
+      byArea
+        .get(bucket)!
+        .push(`- ${f.basename} (${created}${bits ? `, ${bits}` : ""}) — ${m(f.stat.mtime).format("HH:mm")}`);
+    }
+
+    const lines = [`### Vault — today (${m().format("YYYY-MM-DD")})`];
+    if (byArea.size === 0) {
+      lines.push("No notes created or edited today.");
+    } else {
+      for (const [bucket, entries] of byArea) {
+        lines.push(`\n**${bucket}** (${entries.length}):`);
+        lines.push(...entries);
+      }
+    }
+
+    const daily = await this.readTodayNote();
+    if (daily) lines.push(`\n### Today's daily note\n\n${this.truncate(daily, 4000)}`);
+    return lines.join("\n");
+  }
+
+  /** Today's daily note contents, or "" when it doesn't exist yet. */
+  async readTodayNote(): Promise<string> {
+    const m = this.moment();
+    const path = normalizePath(
+      `${this.plugin.settings.dailyFolder}/${m().format("YYYY-MM-DD")}.md`
+    );
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile ? await this.app.vault.read(file) : "";
+  }
+
+  /**
+   * Write an AI-written recap into today's daily note under "## 🧾 Recap".
+   * Replaces any previous recap rather than stacking them, so re-running after
+   * more work lands leaves one current summary.
+   */
+  async saveRecap(markdown: string): Promise<TFile> {
+    const file = await this.getOrCreateToday();
+    const content = await this.app.vault.read(file);
+    const header = "## 🧾 Recap";
+    const block = `${header}\n\n${markdown.trim()}\n`;
+    const lines = content.split("\n");
+    const idx = lines.findIndex((l) => l.trim() === header);
+    if (idx === -1) {
+      await this.app.vault.modify(file, `${content.trimEnd()}\n\n${block}`);
+      return file;
+    }
+    let end = idx + 1;
+    while (end < lines.length && !/^#{1,6} /.test(lines[end])) end++;
+    lines.splice(idx, end - idx, ...block.split("\n"));
+    await this.app.vault.modify(file, lines.join("\n"));
+    return file;
+  }
+
   /** Compact catalog of recent notes + existing link pairs, for AI link suggestions. */
   async linkForgeContext(maxNotes = 80): Promise<{
     catalog: string;
