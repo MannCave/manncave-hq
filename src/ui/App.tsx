@@ -94,7 +94,7 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
         {tab === "manncave" && <AreaView data={data} plugin={plugin} area={AREAS[2]} />}
         {tab === "mccrv" && <AreaView data={data} plugin={plugin} area={AREAS[3]} />}
         {tab === "grid" && <GridView data={data} plugin={plugin} />}
-        {tab === "dev" && <DevView plugin={plugin} />}
+        {tab === "dev" && <DevView data={data} plugin={plugin} />}
         <div style={{ display: tab === "ai" ? undefined : "none" }}>
           <AIView data={data} plugin={plugin} />
         </div>
@@ -117,6 +117,7 @@ function TodayView({
   const [text, setText] = useState("");
   const [target, setTarget] = useState(-1); // -1 = AUTO: the AI routes the capture
   const [busy, setBusy] = useState(false);
+  const { gh, err: ghErr, hasUser } = useGitHub(plugin);
 
   const routeAuto = async (raw: string) => {
     const provider = getProvider(plugin.settings);
@@ -181,7 +182,7 @@ function TodayView({
         <span className="mch-hud-tag mch-dim">MANNCAVE HQ // COMMAND</span>
       </div>
 
-      <AlertRail data={data} onOpenArea={onOpenArea} />
+      <AlertRail data={data} gh={gh} onOpenArea={onOpenArea} />
 
       <div className="mch-hud-hero">
         <Reactor />
@@ -273,7 +274,7 @@ function TodayView({
       </section>
 
       <div className="mch-snap-grid">
-        <DevSnapshot plugin={plugin} onOpen={() => onOpenArea("dev")} />
+        <DevSnapshot gh={gh} err={!!ghErr} hasUser={hasUser} onOpen={() => onOpenArea("dev")} />
         <UsageSnapshot plugin={plugin} onOpen={() => onOpenArea("grid")} />
         <MiniGraph plugin={plugin} onOpen={() => onOpenArea("grid")} />
       </div>
@@ -1077,26 +1078,9 @@ function LinkForge({
 
 const COMMIT_BAR = "#7950d8";
 
-function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
-  const [gh, setGh] = useState<GitHubData | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [gen, setGen] = useState(0);
-  const user = plugin.settings.githubUser;
-
-  useEffect(() => {
-    if (!user) return;
-    let dead = false;
-    setLoading(true);
-    setErr(null);
-    fetchGitHubData(user, plugin.settings.githubToken)
-      .then((d) => !dead && setGh(d))
-      .catch((e) => !dead && setErr(e.message))
-      .finally(() => !dead && setLoading(false));
-    return () => {
-      dead = true;
-    };
-  }, [gen, user, plugin]);
+function DevView({ data, plugin }: { data: VaultData; plugin: MannCaveHQPlugin }) {
+  const { gh, err, loading, hasUser, refresh } = useGitHub(plugin);
+  const user = hasUser ? plugin.settings.githubUser : "";
 
   const W = 560, H = 150, padL = 34, padT = 8, padB = 20;
   const plotW = W - padL - 6;
@@ -1112,11 +1096,13 @@ function DevView({ plugin }: { plugin: MannCaveHQPlugin }) {
         <span className="mch-hud-tag mch-dim">SECTOR 06 // DEV</span>
       </div>
 
+      <InFlight plugin={plugin} data={data} gh={gh} loading={loading} />
+
       <section className="mch-hud-card" data-accent="violet">
         <div className="mch-hud-card-head">
           <span>GITHUB UPLINK{gh ? ` // ${gh.name.toUpperCase()}` : ""}</span>
           <span className="mch-graph-tools">
-            <button className="mch-btn mch-btn-ghost" disabled={loading} onClick={() => setGen((g) => g + 1)}>
+            <button className="mch-btn mch-btn-ghost" disabled={loading} onClick={refresh}>
               {loading ? "SYNCING…" : "REFRESH"}
             </button>
             <span className="mch-hud-id">MOD-08</span>
@@ -1242,21 +1228,18 @@ function Spark({ values, color }: { values: number[]; color: string }) {
   );
 }
 
-function DevSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () => void }) {
-  const [gh, setGh] = useState<GitHubData | null>(null);
-  const [err, setErr] = useState(false);
-  const user = plugin.settings.githubUser;
-
-  useEffect(() => {
-    if (!user) return;
-    let dead = false;
-    getGitHubData(user, plugin.settings.githubToken)
-      .then((d) => !dead && setGh(d))
-      .catch(() => !dead && setErr(true));
-    return () => {
-      dead = true;
-    };
-  }, [user, plugin]);
+function DevSnapshot({
+  gh,
+  err,
+  hasUser,
+  onOpen,
+}: {
+  gh: GitHubData | null;
+  err: boolean;
+  hasUser: boolean;
+  onOpen: () => void;
+}) {
+  const user = hasUser;
 
   return (
     <button className="mch-snap" data-accent="violet" onClick={onOpen}>
@@ -1400,8 +1383,34 @@ function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () =>
 
 /* ---------- Alert rail + pipeline board ---------- */
 
-function AlertRail({ data, onOpenArea }: { data: VaultData; onOpenArea: (id: TabId) => void }) {
-  const alerts = data.alerts();
+function AlertRail({
+  data,
+  gh,
+  onOpenArea,
+}: {
+  data: VaultData;
+  gh: GitHubData | null;
+  onOpenArea: (id: TabId) => void;
+}) {
+  const alerts: { areaId: string; label: string; text: string; level: "warn" | "info"; tab?: TabId }[] =
+    data.alerts();
+  if (gh) {
+    for (const h of gh.health) {
+      if (h.status === "failure") {
+        alerts.unshift({ areaId: "dev", label: "DEV", text: `${h.repo} CI failing`, level: "warn", tab: "dev" });
+      }
+    }
+    const stale = gh.openPRs.filter((p) => p.ageDays >= 3 && !p.draft);
+    if (stale.length > 0) {
+      alerts.unshift({
+        areaId: "dev",
+        label: "DEV",
+        text: `${stale.length} PR${stale.length === 1 ? "" : "s"} open 3d+`,
+        level: "warn",
+        tab: "dev",
+      });
+    }
+  }
   if (alerts.length === 0) {
     return (
       <div className="mch-alerts">
@@ -1417,8 +1426,8 @@ function AlertRail({ data, onOpenArea }: { data: VaultData; onOpenArea: (id: Tab
         <button
           key={`${a.areaId}-${i}`}
           className={`mch-alert is-${a.level}`}
-          data-accent={AREA_ACCENT[a.areaId]}
-          onClick={() => onOpenArea(a.areaId as TabId)}
+          data-accent={a.tab === "dev" ? "violet" : AREA_ACCENT[a.areaId]}
+          onClick={() => onOpenArea(a.tab ?? (a.areaId as TabId))}
         >
           <span className="mch-alert-dot" />
           <b>{a.label}</b> {a.text}
@@ -1490,6 +1499,147 @@ function PipelineBoard({ data, area }: { data: VaultData; area: AreaConfig }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+/* ---------- Dev: in-flight work ---------- */
+
+/** Shared GitHub fetch. getGitHubData is cached, so multiple callers cost one round trip. */
+function useGitHub(plugin: MannCaveHQPlugin) {
+  const [gh, setGh] = useState<GitHubData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [gen, setGen] = useState(0);
+  const user = plugin.settings.githubUser;
+
+  useEffect(() => {
+    if (!user) return;
+    let dead = false;
+    setLoading(true);
+    setErr(null);
+    getGitHubData(user, plugin.settings.githubToken, gen > 0)
+      .then((d) => !dead && setGh(d))
+      .catch((e) => !dead && setErr(e.message))
+      .finally(() => !dead && setLoading(false));
+    return () => {
+      dead = true;
+    };
+  }, [user, plugin, gen]);
+
+  return { gh, err, loading, hasUser: !!user, refresh: () => setGen((g) => g + 1) };
+}
+
+const HEALTH_ICON = { success: "✓", failure: "✕", running: "◍", none: "·" } as const;
+
+function InFlight({
+  plugin,
+  data,
+  gh,
+  loading,
+}: {
+  plugin: MannCaveHQPlugin;
+  data: VaultData;
+  gh: GitHubData | null;
+  loading: boolean;
+}) {
+  const [logging, setLogging] = useState(false);
+
+  const logCommits = async () => {
+    if (!gh || logging) return;
+    setLogging(true);
+    try {
+      const m = (window as any).moment;
+      const today = m().format("M/D");
+      const todays = gh.recent.filter((c) => c.when.startsWith(today + " "));
+      if (todays.length === 0) {
+        new Notice("No commits pushed today yet.");
+        return;
+      }
+      const added = await data.logCommits(todays);
+      new Notice(added > 0 ? `Logged ${added} commit${added === 1 ? "" : "s"} to today's note` : "Already logged");
+    } catch (e: any) {
+      new Notice(`Couldn't log commits: ${e.message}`);
+    } finally {
+      setLogging(false);
+    }
+  };
+
+  const nothing = gh && gh.openPRs.length === 0 && gh.openIssues.length === 0;
+
+  return (
+    <section className="mch-hud-card" data-accent="violet">
+      <div className="mch-hud-card-head">
+        <span>IN FLIGHT // OPEN WORK</span>
+        <span className="mch-graph-tools">
+          <button className="mch-btn mch-btn-ghost" disabled={!gh || logging} onClick={logCommits}>
+            {logging ? "LOGGING…" : "LOG COMMITS →"}
+          </button>
+          <span className="mch-hud-id">MOD-10</span>
+        </span>
+      </div>
+
+      {loading && !gh && <div className="mch-empty">Contacting GitHub…</div>}
+
+      {gh && (
+        <>
+          <div className="mch-readouts">
+            <span><b>{gh.openPRs.length}</b>OPEN PRS</span>
+            <span><b>{gh.openIssues.length}</b>ISSUES</span>
+            <span><b>{gh.releases14d}</b>SHIPPED 14D</span>
+            <span><b>{gh.streakDays}</b>DAY STREAK</span>
+            <span><b>{gh.activeDays30}</b>ACTIVE 30D</span>
+          </div>
+
+          {gh.health.length > 0 && (
+            <div className="mch-health">
+              {gh.health.map((h) => (
+                <button
+                  key={h.repo}
+                  className={`mch-health-pill is-${h.status}`}
+                  onClick={() => window.open(h.url)}
+                  title={`Latest workflow run — ${h.status}${h.when ? ` (${h.when})` : ""}`}
+                >
+                  <span className="mch-health-icon">{HEALTH_ICON[h.status]}</span>
+                  {h.repo}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {nothing && <div className="mch-empty">No open PRs or issues — the board is clear.</div>}
+
+          {gh.openPRs.length > 0 && (
+            <ul className="mch-list mch-flight-list">
+              {gh.openPRs.slice(0, 6).map((p) => (
+                <li key={p.url}>
+                  <button className="mch-note" onClick={() => window.open(p.url)}>
+                    <span className="mch-note-title">
+                      <span className="mch-flight-tag">PR</span>
+                      {p.draft && <span className="mch-flight-draft">draft </span>}
+                      {p.repo} #{p.number} — {p.title}
+                    </span>
+                    <span className={`mch-flight-age ${p.ageDays >= 3 ? "is-stale" : ""}`}>
+                      {p.ageDays}d
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {gh.openIssues.slice(0, 4).map((it) => (
+                <li key={it.url}>
+                  <button className="mch-note" onClick={() => window.open(it.url)}>
+                    <span className="mch-note-title">
+                      <span className="mch-flight-tag is-issue">ISS</span>
+                      {it.repo} #{it.number} — {it.title}
+                    </span>
+                    <span className="mch-flight-age">{it.ageDays}d</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </section>
   );
 }

@@ -1862,3 +1862,70 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
   .mch-pipe-open { padding: 11px 10px; }
   .mch-pipe-adv { padding: 0 16px; }
 }
+
+/* ---- Dev: in-flight work ---- */
+
+.mch-health { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
+.mch-health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--mch-line);
+  border-radius: 3px;
+  color: var(--mch-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.mch-health-pill:hover { color: var(--mch-text); }
+.mch-health-icon { font-size: 11px; font-weight: 700; }
+
+.mch-health-pill.is-success { border-color: color-mix(in srgb, #35c26e 45%, transparent); }
+.mch-health-pill.is-success .mch-health-icon { color: #35c26e; }
+.mch-health-pill.is-failure { border-color: color-mix(in srgb, var(--mch-ember) 60%, transparent); color: var(--mch-text); }
+.mch-health-pill.is-failure .mch-health-icon { color: var(--mch-ember); }
+.mch-health-pill.is-running .mch-health-icon { color: var(--mch-accent); animation: mch-blink 1.4s ease-in-out infinite; }
+
+.mch-flight-list { margin-top: 2px; }
+
+.mch-flight-tag {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--mch-accent);
+  border: 1px solid color-mix(in srgb, var(--mch-accent) 40%, transparent);
+  border-radius: 2px;
+  padding: 1px 4px;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+
+.mch-flight-tag.is-issue { color: var(--mch-muted); border-color: var(--mch-line); }
+
+.mch-flight-draft {
+  font-size: 10px;
+  color: var(--mch-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mch-flight-age {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--mch-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mch-flight-age.is-stale {
+  color: var(--mch-ember);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--mch-ember) 50%, transparent);
+}

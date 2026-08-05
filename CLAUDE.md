@@ -13,7 +13,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - TypeScript + React 18, bundled with esbuild to a single `main.js` (CommonJS, `obsidian` external).
 - `npm install` then `npm run build` (production) or `npm run dev` (watch).
 - Type check: `npx tsc --noEmit`. No test suite yet.
-- Current version: 0.14.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
+- Current version: 0.15.0 (keep `manifest.json`, `package.json`, and `versions.json` in sync on every release).
 
 ## File map
 - `src/main.ts` — plugin entry (view + ribbon + settings registration)
@@ -21,7 +21,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - `src/vault.ts` — vault data layer: AREAS config, note listing via metadataCache frontmatter, template-based note creation, daily-note quick capture, transcript saving
 - `src/ai.ts` — AIProvider interface + Anthropic/OpenAICompat/Ollama adapters (uses Obsidian `requestUrl`, never fetch, to avoid CORS)
 - `src/sketch.ts` — SketchModal: pointer-drawn canvas (pen pressure, eraser, undo), exports PNG with baked dark background + companion note, files to Daily or an area's Sketches folder
-- `src/github.ts` — GitHub REST client (requestUrl): profile/repos/push events → Dev tab data (optional fine-grained PAT in settings); `getGitHubData` adds a 5-min shared cache so Today + Dev share one round trip
+- `src/github.ts` — GitHub REST client (requestUrl): profile/repos/push events + open PRs & assigned issues (search API) + latest workflow-run status for the 4 most recent repos → Dev tab data (optional fine-grained PAT in settings). `getGitHubData` adds a 5-min shared cache so Today + Dev share one round trip; search/actions calls are wrapped so a rate-limit degrades one panel, never the tab.
 - `src/graph.ts` — vault link-graph engine shared by the full Neural Map and the home mini-map: `buildGraph` / `seedLayout` / `stepLayout` / `drawGraph` + `GRAPH_GROUPS`
 - `src/view.tsx` — ItemView hosting React root
 - `src/ui/App.tsx` — tabs: Today (HUD), 3 area views, AI chat
@@ -47,6 +47,7 @@ A custom Obsidian plugin serving as Houston's personal command center ("second b
 - Weekly review flow + habit streaks
 - Resume saved transcripts back into chat
 
+Shipped in 0.15.0: IN FLIGHT panel on Dev (MOD-10) — open PRs (age, draft flag, 3d+ flagged stale), assigned issues, CI health pills per repo from the latest workflow run, and readouts for shipped-14d / day-streak / active-days-30d. Dev signals now feed the alert rail (failing CI, PRs open 3d+). "LOG COMMITS →" appends today's pushes to the daily note under `## 💻 Dev`, deduped so it is safe to re-run. `useGitHub` hook shares one cached fetch between Today and Dev.
 Shipped in 0.14.0: ALERT RAIL on Today (stalled-idea / nothing-in-progress / nothing-shipped-this-week chips computed from statuses + mtime, colour-coded per brand, tap to jump; shows "ALL SECTORS NOMINAL" when clear) and PIPELINE BOARD on every area view (PIPELINE/FILES switch, idea → in-progress → done columns that swipe horizontally on phones, tap a card to open, tap → to advance — writes `status` via `fileManager.processFrontMatter`). Board columns are divs, and clickable cards split into a title button + advance button, so no `<button>` is ever a flex column (see 0.13.2).
 Shipped in 0.5.0: markdown rendering in chat, streaming responses (fetch/SSE with non-streaming fallback), "Send to Content Hub" action on AI replies.
 Shipped in 0.6.0: vault-aware chat context (attach active note / area backlog with statuses / last 7 daily recaps via toggle chips); chat state now survives vault changes and tab switches.
