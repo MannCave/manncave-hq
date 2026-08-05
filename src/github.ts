@@ -63,6 +63,9 @@ export interface GitHubData {
   releases14d: number;
   streakDays: number;
   activeDays30: number;
+  privateRepos: number;
+  /** True when a token was supplied, so private repos/activity are in scope. */
+  authenticated: boolean;
 }
 
 let cache: { key: string; at: number; data: GitHubData } | null = null;
@@ -83,8 +86,16 @@ export async function getGitHubData(
   return data;
 }
 
-/** Pull profile, repos, and push activity for the dashboard. Token optional
- *  (raises rate limits and includes private repo activity for your own user). */
+/**
+ * Pull profile, repos, and activity for the dashboard.
+ *
+ * Private repositories only appear when a token is supplied AND we ask the
+ * *authenticated* endpoints: `/users/{username}/repos` returns public repos
+ * only, no matter what token is attached. With a token we therefore use
+ * `/user` and `/user/repos`, which include private repos the token can see.
+ * `/users/{username}/events` already includes private events when
+ * authenticated as that user (fine-grained tokens need the "Events" permission).
+ */
 export async function fetchGitHubData(username: string, token: string): Promise<GitHubData> {
   const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -100,9 +111,22 @@ export async function fetchGitHubData(username: string, token: string): Promise<
   // there should degrade that panel, never the whole Dev tab
   const soft = <T,>(pr: Promise<T>, fallback: T): Promise<T> => pr.catch(() => fallback);
 
+  // authenticated endpoints see private repos; the /users/... ones never do.
+  // A token that is expired or missing a permission shouldn't blank the whole
+  // tab, so each authenticated call falls back to its public equivalent.
+  const authenticated = !!token;
+  const publicProfile = `/users/${username}`;
+  const publicRepoList = `/users/${username}/repos?sort=pushed&per_page=100&type=owner`;
+  const profileReq = authenticated ? gh(`/user`).catch(() => gh(publicProfile)) : gh(publicProfile);
+  const reposReq = authenticated
+    ? gh(
+        `/user/repos?visibility=all&affiliation=owner,organization_member&sort=pushed&per_page=100`
+      ).catch(() => gh(publicRepoList))
+    : gh(publicRepoList);
+
   const [user, repos, page1, page2, prSearch, issueSearch] = await Promise.all([
-    gh(`/users/${username}`),
-    gh(`/users/${username}/repos?sort=pushed&per_page=100&type=owner`),
+    profileReq,
+    reposReq,
     gh(`/users/${username}/events?per_page=100`),
     soft(gh(`/users/${username}/events?per_page=100&page=2`), []),
     soft(
@@ -114,6 +138,11 @@ export async function fetchGitHubData(username: string, token: string): Promise<
       { items: [] }
     ),
   ]);
+
+  // GitHub's own profile totals when we have them, so PRIVATE + REPOS stay
+  // consistent; otherwise count what the repo list actually returned.
+  const privateRepos =
+    user.total_private_repos ?? (repos as any[]).filter((r: any) => r.private).length;
 
   const m = (window as any).moment;
   const pushes = ([...page1, ...page2] as any[]).filter((e) => e.type === "PushEvent");
@@ -197,6 +226,8 @@ export async function fetchGitHubData(username: string, token: string): Promise<
   ).filter((h) => h.status !== "none");
 
   return {
+    authenticated,
+    privateRepos,
     openPRs,
     openIssues,
     health,
@@ -204,7 +235,9 @@ export async function fetchGitHubData(username: string, token: string): Promise<
     streakDays,
     activeDays30,
     name: user.name ?? username,
-    publicRepos: user.public_repos ?? 0,
+    publicRepos: authenticated
+      ? (user.public_repos ?? 0) + (user.total_private_repos ?? 0)
+      : (user.public_repos ?? 0),
     followers: user.followers ?? 0,
     totalStars: (repos as any[]).reduce((n, r) => n + (r.stargazers_count ?? 0), 0),
     commits30d,

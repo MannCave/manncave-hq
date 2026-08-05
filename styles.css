@@ -330,6 +330,14 @@
   padding: 10px 2px;
 }
 
+/* inline advisory under a card's readouts (e.g. "public repos only") */
+.mch-hint {
+  color: var(--mch-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 2px 2px 6px;
+}
+
 /* ---- AI view ---- */
 
 .mch-ai {

@@ -222,7 +222,7 @@ export class HQSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("GitHub username")
-      .setDesc("Powers the Dev tab (repos, commit pulse).")
+      .setDesc("Powers the Dev tab (repos, commit pulse). If you set a token below, use the same account.")
       .addText((t) =>
         t.setValue(this.plugin.settings.githubUser).onChange(async (v) => {
           this.plugin.settings.githubUser = v.trim();
@@ -232,7 +232,34 @@ export class HQSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("GitHub token (optional)")
-      .setDesc("Fine-grained personal access token. Optional — raises rate limits and includes private repo activity.")
+      .setDesc(
+        createFragment((f) => {
+          f.createDiv({
+            text:
+              "Without a token the Dev tab shows public repos only. Add one and private repos, " +
+              "their commits, PRs, issues, and CI runs are folded into every GitHub readout.",
+          });
+          f.createDiv({
+            text:
+              "Easiest: a classic token with the 'repo' scope (github.com/settings/tokens) — " +
+              "that covers everything below in one checkbox.",
+          });
+          f.createDiv({
+            text:
+              "Tighter: a fine-grained token scoped to the repos you want, with repository " +
+              "permissions Metadata, Contents, Pull requests, Issues and Actions set to Read, " +
+              "plus the account permission 'Events' set to Read — without Events, private " +
+              "commits stay invisible even for repos the token can see.",
+          });
+          f.createDiv({
+            cls: "mod-warning",
+            text:
+              "Heads up: with private repos in scope, 'LOG COMMITS' writes private commit " +
+              "messages into your daily note. Keep that in mind if this vault is backed up " +
+              "anywhere public.",
+          });
+        })
+      )
       .addText((t) =>
         t
           .setPlaceholder("github_pat_...")
