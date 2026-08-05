@@ -181,6 +181,8 @@ function TodayView({
         <span className="mch-hud-tag mch-dim">MANNCAVE HQ // COMMAND</span>
       </div>
 
+      <AlertRail data={data} onOpenArea={onOpenArea} />
+
       <div className="mch-hud-hero">
         <Reactor />
         <div className="mch-sectors">
@@ -290,6 +292,7 @@ const AREA_HUD: Record<string, { status: string; sector: string; kicker: string 
 
 function AreaView({ data, plugin, area }: { data: VaultData; plugin: MannCaveHQPlugin; area: AreaConfig }) {
   const hud = AREA_HUD[area.id];
+  const [view, setView] = useState<"pipeline" | "files">("pipeline");
   return (
     <div className={`mch-stack mch-hud-zone mch-boot mch-theme-${area.id}`} data-accent={AREA_ACCENT[area.id]}>
       <div className="mch-hud-top">
@@ -312,9 +315,26 @@ function AreaView({ data, plugin, area }: { data: VaultData; plugin: MannCaveHQP
           <AreaMotif id={area.id} />
         </div>
       </div>
-      {area.sections.map((s) => (
-        <SectionCard key={s.path} data={data} section={s} accent={AREA_ACCENT[area.id]} />
-      ))}
+      <div className="mch-chips mch-viewswitch">
+        <button
+          className={`mch-chip ${view === "pipeline" ? "is-on" : ""}`}
+          onClick={() => setView("pipeline")}
+        >
+          PIPELINE
+        </button>
+        <button
+          className={`mch-chip ${view === "files" ? "is-on" : ""}`}
+          onClick={() => setView("files")}
+        >
+          FILES
+        </button>
+      </div>
+
+      {view === "pipeline" && <PipelineBoard data={data} area={area} />}
+      {view === "files" &&
+        area.sections.map((s) => (
+          <SectionCard key={s.path} data={data} section={s} accent={AREA_ACCENT[area.id]} />
+        ))}
     </div>
   );
 }
@@ -1375,5 +1395,101 @@ function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () =>
         </span>
       </span>
     </button>
+  );
+}
+
+/* ---------- Alert rail + pipeline board ---------- */
+
+function AlertRail({ data, onOpenArea }: { data: VaultData; onOpenArea: (id: TabId) => void }) {
+  const alerts = data.alerts();
+  if (alerts.length === 0) {
+    return (
+      <div className="mch-alerts">
+        <span className="mch-alert is-clear">
+          <span className="mch-alert-dot" />ALL SECTORS NOMINAL
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="mch-alerts">
+      {alerts.slice(0, 4).map((a, i) => (
+        <button
+          key={`${a.areaId}-${i}`}
+          className={`mch-alert is-${a.level}`}
+          data-accent={AREA_ACCENT[a.areaId]}
+          onClick={() => onOpenArea(a.areaId as TabId)}
+        >
+          <span className="mch-alert-dot" />
+          <b>{a.label}</b> {a.text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const PIPE_COLS: { key: "idea" | "active" | "done"; label: string; next: string | null }[] = [
+  { key: "idea", label: "IDEA", next: "in-progress" },
+  { key: "active", label: "IN PROGRESS", next: "done" },
+  { key: "done", label: "DONE", next: null },
+];
+
+function PipelineBoard({ data, area }: { data: VaultData; area: AreaConfig }) {
+  const [, setBump] = useState(0);
+  const pipe = data.areaPipeline(area);
+
+  const advance = async (note: NoteInfo, next: string) => {
+    try {
+      await data.setStatus(note.file, next);
+      new Notice(`${note.title} → ${next}`);
+      setBump((b) => b + 1);
+    } catch (e: any) {
+      new Notice(`Couldn't update status: ${e.message}`);
+    }
+  };
+
+  return (
+    <section className="mch-card" data-accent={AREA_ACCENT[area.id]}>
+      <div className="mch-card-head">
+        <h2>Pipeline</h2>
+        <span className="mch-pipe-hint">tap a card to open · → to advance</span>
+      </div>
+      <div className="mch-board">
+        {PIPE_COLS.map((col) => {
+          const items = pipe[col.key];
+          return (
+            <div className="mch-board-col" key={col.key}>
+              <div className="mch-board-head">
+                <span>{col.label}</span>
+                <span className="mch-board-count">{items.length}</span>
+              </div>
+              <div className="mch-board-items">
+                {items.length === 0 && <div className="mch-board-empty">—</div>}
+                {items.slice(0, 12).map((n) => (
+                  <div className="mch-pipe-card" key={n.file.path}>
+                    <button className="mch-pipe-open" onClick={() => data.openFile(n.file)}>
+                      {n.title}
+                    </button>
+                    {col.next && (
+                      <button
+                        className="mch-pipe-adv"
+                        title={`Move to ${col.next}`}
+                        aria-label={`Move ${n.title} to ${col.next}`}
+                        onClick={() => advance(n, col.next!)}
+                      >
+                        →
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {items.length > 12 && (
+                  <div className="mch-board-empty">+{items.length - 12} more</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

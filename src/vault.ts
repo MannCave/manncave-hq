@@ -133,6 +133,59 @@ export class VaultData {
     return { ideas, active, total };
   }
 
+  /** Every note in an area, bucketed by pipeline status. */
+  areaPipeline(area: AreaConfig): { idea: NoteInfo[]; active: NoteInfo[]; done: NoteInfo[] } {
+    const out = { idea: [] as NoteInfo[], active: [] as NoteInfo[], done: [] as NoteInfo[] };
+    for (const s of area.sections) {
+      for (const n of this.listNotes(s.path)) {
+        if (n.status === "idea") out.idea.push(n);
+        else if (n.status === "in-progress") out.active.push(n);
+        else if (n.status === "done") out.done.push(n);
+      }
+    }
+    return out;
+  }
+
+  /** Write a new pipeline status into a note's frontmatter. */
+  async setStatus(file: TFile, status: string): Promise<void> {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      fm.status = status;
+    });
+  }
+
+  /**
+   * Things asking for attention, worst first: stalled ideas, areas with nothing
+   * active, and weeks with nothing shipped.
+   */
+  alerts(idleDays = 7): { areaId: AreaId; label: string; text: string; level: "warn" | "info" }[] {
+    const now = Date.now();
+    const idleMs = idleDays * 86400000;
+    const weekMs = 7 * 86400000;
+    const out: { areaId: AreaId; label: string; text: string; level: "warn" | "info" }[] = [];
+    let shippedAnywhere = 0;
+    for (const area of AREAS) {
+      const p = this.areaPipeline(area);
+      const total = p.idea.length + p.active.length + p.done.length;
+      shippedAnywhere += p.done.filter((n) => now - n.mtime < weekMs).length;
+      const stalled = p.idea.filter((n) => now - n.mtime > idleMs).length;
+      if (stalled > 0) {
+        out.push({
+          areaId: area.id,
+          label: area.short,
+          text: `${stalled} idea${stalled === 1 ? "" : "s"} idle ${idleDays}d+`,
+          level: "warn",
+        });
+      }
+      if (total > 0 && p.active.length === 0) {
+        out.push({ areaId: area.id, label: area.short, text: "nothing in progress", level: "info" });
+      }
+    }
+    if (shippedAnywhere === 0) {
+      out.push({ areaId: AREAS[0].id, label: "ALL", text: "nothing shipped this week", level: "info" });
+    }
+    return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "warn" ? -1 : 1));
+  }
+
   async ensureFolder(path: string) {
     const p = normalizePath(path);
     if (!this.app.vault.getAbstractFileByPath(p)) {
