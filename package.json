@@ -1,6 +1,6 @@
 {
   "name": "manncave-hq",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "private": true,
   "scripts": {
     "dev": "node esbuild.config.mjs",
