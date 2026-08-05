@@ -1,10 +1,11 @@
 {
   "name": "manncave-hq",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "private": true,
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "node esbuild.config.mjs production"
+    "build": "node scripts/check-layout.mjs && node esbuild.config.mjs production",
+    "lint:layout": "node scripts/check-layout.mjs"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

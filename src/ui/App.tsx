@@ -103,6 +103,43 @@ export function App({ plugin }: { plugin: MannCaveHQPlugin }) {
   );
 }
 
+
+/**
+ * Clickable card container. Deliberately a <div role="button"> and never a
+ * <button>: WebKit does not size a button box to its content when that content
+ * is a stacked layout, so the card collapses and paints over its neighbours.
+ * A div has no engine-specific layout behaviour. Keyboard semantics are kept.
+ */
+function CardButton({
+  className,
+  accent,
+  onClick,
+  children,
+}: {
+  className: string;
+  accent?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={className}
+      data-accent={accent}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ---------- Today ---------- */
 
 function TodayView({
@@ -191,10 +228,10 @@ function TodayView({
             const c = data.countByStatus(area);
             const load = c.total ? Math.round((c.active / c.total) * 100) : 0;
             return (
-              <button
+              <CardButton
                 key={area.id}
                 className="mch-sector"
-                data-accent={AREA_ACCENT[area.id]}
+                accent={AREA_ACCENT[area.id]}
                 onClick={() => onOpenArea(area.id as TabId)}
               >
                 {/* WebKit will not lay out a <button> as a flex column: children
@@ -211,7 +248,7 @@ function TodayView({
                     <span className="mch-meter-fill" style={{ width: `${load}%` }} />
                   </span>
                 </span>
-              </button>
+              </CardButton>
             );
           })}
         </div>
@@ -1242,7 +1279,7 @@ function DevSnapshot({
   const user = hasUser;
 
   return (
-    <button className="mch-snap" data-accent="violet" onClick={onOpen}>
+    <CardButton className="mch-snap" accent="violet" onClick={onOpen}>
       {/* WebKit will not lay out a <button> as a flex column: children centre
           and the box collapses, spilling over neighbours. Inner span owns the layout. */}
       <span className="mch-snap-inner">
@@ -1275,7 +1312,7 @@ function DevSnapshot({
           </>
         )}
       </span>
-    </button>
+    </CardButton>
   );
 }
 
@@ -1299,7 +1336,7 @@ function UsageSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: (
   const active = [...models][0] ?? "—";
 
   return (
-    <button className="mch-snap" data-accent="ice" onClick={onOpen}>
+    <CardButton className="mch-snap" accent="ice" onClick={onOpen}>
       {/* WebKit will not lay out a <button> as a flex column: children centre
           and the box collapses, spilling over neighbours. Inner span owns the layout. */}
       <span className="mch-snap-inner">
@@ -1329,7 +1366,7 @@ function UsageSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: (
           </>
         )}
       </span>
-    </button>
+    </CardButton>
   );
 }
 
@@ -1359,7 +1396,7 @@ function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () =>
   }, [plugin]);
 
   return (
-    <button className="mch-snap mch-snap-graph" data-accent="ice" onClick={onOpen}>
+    <CardButton className="mch-snap mch-snap-graph" accent="ice" onClick={onOpen}>
       {/* WebKit will not lay out a <button> as a flex column: children centre
           and the box collapses, spilling over neighbours. Inner span owns the layout. */}
       <span className="mch-snap-inner">
@@ -1377,7 +1414,7 @@ function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () =>
           </span>
         </span>
       </span>
-    </button>
+    </CardButton>
   );
 }
 
