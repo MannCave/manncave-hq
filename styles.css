@@ -1001,6 +1001,15 @@
   transition: width 0.5s ease;
 }
 
+/* WebKit collapses <button> boxes used as flex/grid containers and centres
+   their children — every clickable card puts its layout on an inner element. */
+button.mch-snap, button.mch-sector {
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+}
+
 /* --- sector switcher (home) --- */
 
 .mch-sectors {
@@ -1010,9 +1019,7 @@
 }
 
 .mch-sector {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+  display: block;
   background: rgba(10, 11, 15, 0.7);
   border: 1px solid color-mix(in srgb, var(--mch-accent) 20%, transparent);
   border-left: 2px solid color-mix(in srgb, var(--mch-accent) 70%, transparent);
@@ -1028,6 +1035,13 @@
   border-left-color: var(--mch-accent);
   background: rgba(16, 18, 24, 0.9);
   transform: translateX(2px);
+}
+
+.mch-sector-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
 }
 
 .mch-sector-head {
@@ -1079,9 +1093,7 @@
 }
 
 .mch-snap {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+  display: block;
   background: rgba(10, 11, 15, 0.7);
   border: 1px solid var(--mch-line);
   border-top: 1px solid color-mix(in srgb, var(--mch-accent) 45%, transparent);
@@ -1100,6 +1112,13 @@ button.mch-snap:hover {
   border-color: color-mix(in srgb, var(--mch-accent) 35%, transparent);
   border-top-color: var(--mch-accent);
   background: rgba(16, 18, 24, 0.92);
+}
+
+.mch-snap-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
 }
 
 .mch-snap-head {
@@ -1198,6 +1217,9 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
 /* --- console --- */
 
 .mch-console-row { display: flex; align-items: center; gap: 10px; }
+
+.mch-console .mch-row .mch-chips { flex: 1 1 auto; min-width: 0; }
+.mch-console .mch-row .mch-btn { flex: 0 0 auto; }
 
 .mch-prompt {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1678,4 +1700,20 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
   .mch-sketch-ink { width: 28px; height: 28px; }
   /* hover-reveal affordances don't exist on touch — show them outright */
   .mch-snap-more { opacity: 1; color: color-mix(in srgb, var(--mch-accent) 65%, var(--mch-muted)); }
+}
+
+/* --- landscape phone: wide but very short, so width breakpoints never fire --- */
+@media (max-height: 520px) and (pointer: coarse) {
+  .mch-root { padding-top: 12px; }
+  .mch-header { margin-bottom: 10px; gap: 8px; }
+  .mch-date { font-size: 19px; }
+  .mch-hud-hero { grid-template-columns: minmax(110px, 130px) 1fr; gap: 10px; }
+  .mch-reactor { max-width: 130px; }
+  .mch-reactor-time { font-size: 20px; }
+  .mch-theme-today .mch-stack,
+  .mch-stack { gap: 8px; }
+  .mch-hud-card { padding: 10px 12px; }
+  .mch-hud-card-head { margin-bottom: 7px; }
+  .mch-minigraph canvas { height: 92px !important; }
+  .mch-ai { height: calc(100vh - 120px); height: calc(100dvh - 120px); min-height: 200px; }
 }

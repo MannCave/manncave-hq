@@ -194,15 +194,19 @@ function TodayView({
                 data-accent={AREA_ACCENT[area.id]}
                 onClick={() => onOpenArea(area.id as TabId)}
               >
-                <span className="mch-sector-head">
-                  <span className="mch-sector-name">{area.short.toUpperCase()}</span>
-                  <span className="mch-sector-id">0{i + 2}</span>
-                </span>
-                <span className="mch-sector-nums">
-                  <b>{c.active}</b> ACTIVE <b>{c.ideas}</b> IDEAS
-                </span>
-                <span className="mch-meter">
-                  <span className="mch-meter-fill" style={{ width: `${load}%` }} />
+                {/* WebKit will not lay out a <button> as a flex column: children
+                    centre and the box collapses. Inner span owns the layout. */}
+                <span className="mch-sector-inner">
+                  <span className="mch-sector-head">
+                    <span className="mch-sector-name">{area.short.toUpperCase()}</span>
+                    <span className="mch-sector-id">0{i + 2}</span>
+                  </span>
+                  <span className="mch-sector-nums">
+                    <b>{c.active}</b> ACTIVE <b>{c.ideas}</b> IDEAS
+                  </span>
+                  <span className="mch-meter">
+                    <span className="mch-meter-fill" style={{ width: `${load}%` }} />
+                  </span>
                 </span>
               </button>
             );
@@ -1236,34 +1240,38 @@ function DevSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () 
 
   return (
     <button className="mch-snap" data-accent="violet" onClick={onOpen}>
-      <span className="mch-snap-head">
-        <span>DEV PULSE</span>
-        <span className="mch-snap-more">DEV →</span>
+      {/* WebKit will not lay out a <button> as a flex column: children centre
+          and the box collapses, spilling over neighbours. Inner span owns the layout. */}
+      <span className="mch-snap-inner">
+        <span className="mch-snap-head">
+          <span>DEV PULSE</span>
+          <span className="mch-snap-more">DEV →</span>
+        </span>
+        {!user || err ? (
+          <span className="mch-snap-empty">{err ? "uplink unavailable" : "set GitHub user in settings"}</span>
+        ) : !gh ? (
+          <span className="mch-snap-empty">syncing…</span>
+        ) : (
+          <>
+            <span className="mch-snap-hero">
+              <b>{gh.commits14d}</b>
+              <span className="mch-snap-unit">commits · 14d</span>
+              <Spark values={gh.commitsByDay.map((d) => d.count)} color={COMMIT_BAR} />
+            </span>
+            <span className="mch-snap-rows">
+              {gh.commitsByRepo.slice(0, 4).map((r) => (
+                <span key={r.repo} className="mch-snap-row">
+                  <span className="mch-snap-label">{r.repo}</span>
+                  <span className="mch-snap-val">{r.count}</span>
+                </span>
+              ))}
+              {gh.commitsByRepo.length === 0 && (
+                <span className="mch-snap-empty">no pushes in the last 14 days</span>
+              )}
+            </span>
+          </>
+        )}
       </span>
-      {!user || err ? (
-        <span className="mch-snap-empty">{err ? "uplink unavailable" : "set GitHub user in settings"}</span>
-      ) : !gh ? (
-        <span className="mch-snap-empty">syncing…</span>
-      ) : (
-        <>
-          <span className="mch-snap-hero">
-            <b>{gh.commits14d}</b>
-            <span className="mch-snap-unit">commits · 14d</span>
-            <Spark values={gh.commitsByDay.map((d) => d.count)} color={COMMIT_BAR} />
-          </span>
-          <span className="mch-snap-rows">
-            {gh.commitsByRepo.slice(0, 4).map((r) => (
-              <span key={r.repo} className="mch-snap-row">
-                <span className="mch-snap-label">{r.repo}</span>
-                <span className="mch-snap-val">{r.count}</span>
-              </span>
-            ))}
-            {gh.commitsByRepo.length === 0 && (
-              <span className="mch-snap-empty">no pushes in the last 14 days</span>
-            )}
-          </span>
-        </>
-      )}
     </button>
   );
 }
@@ -1289,31 +1297,35 @@ function UsageSnapshot({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: (
 
   return (
     <button className="mch-snap" data-accent="ice" onClick={onOpen}>
-      <span className="mch-snap-head">
-        <span>TOKEN FLOW</span>
-        <span className="mch-snap-more">GRID →</span>
+      {/* WebKit will not lay out a <button> as a flex column: children centre
+          and the box collapses, spilling over neighbours. Inner span owns the layout. */}
+      <span className="mch-snap-inner">
+        <span className="mch-snap-head">
+          <span>TOKEN FLOW</span>
+          <span className="mch-snap-more">GRID →</span>
+        </span>
+        {series.every((v) => v === 0) ? (
+          <span className="mch-snap-empty">no API calls recorded yet</span>
+        ) : (
+          <>
+            <span className="mch-snap-hero">
+              <b>{fmtTok(today)}</b>
+              <span className="mch-snap-unit">tokens · today</span>
+              <Spark values={series} color={USAGE_IN} />
+            </span>
+            <span className="mch-snap-rows">
+              <span className="mch-snap-row">
+                <span className="mch-snap-label">last 7 days</span>
+                <span className="mch-snap-val">{fmtTok(week)}</span>
+              </span>
+              <span className="mch-snap-row">
+                <span className="mch-snap-label">active model</span>
+                <span className="mch-snap-val mch-snap-model">{active.split(" · ").pop()}</span>
+              </span>
+            </span>
+          </>
+        )}
       </span>
-      {series.every((v) => v === 0) ? (
-        <span className="mch-snap-empty">no API calls recorded yet</span>
-      ) : (
-        <>
-          <span className="mch-snap-hero">
-            <b>{fmtTok(today)}</b>
-            <span className="mch-snap-unit">tokens · today</span>
-            <Spark values={series} color={USAGE_IN} />
-          </span>
-          <span className="mch-snap-rows">
-            <span className="mch-snap-row">
-              <span className="mch-snap-label">last 7 days</span>
-              <span className="mch-snap-val">{fmtTok(week)}</span>
-            </span>
-            <span className="mch-snap-row">
-              <span className="mch-snap-label">active model</span>
-              <span className="mch-snap-val mch-snap-model">{active.split(" · ").pop()}</span>
-            </span>
-          </span>
-        </>
-      )}
     </button>
   );
 }
@@ -1345,17 +1357,21 @@ function MiniGraph({ plugin, onOpen }: { plugin: MannCaveHQPlugin; onOpen: () =>
 
   return (
     <button className="mch-snap mch-snap-graph" data-accent="ice" onClick={onOpen}>
-      <span className="mch-snap-head">
-        <span>NEURAL MAP</span>
-        <span className="mch-snap-more">GRID →</span>
-      </span>
-      <span className="mch-minigraph" ref={wrapRef}>
-        <canvas ref={canvasRef} />
-      </span>
-      <span className="mch-snap-rows">
-        <span className="mch-snap-row">
-          <span className="mch-snap-label">{meta.nodes} notes</span>
-          <span className="mch-snap-val">{meta.links} links</span>
+      {/* WebKit will not lay out a <button> as a flex column: children centre
+          and the box collapses, spilling over neighbours. Inner span owns the layout. */}
+      <span className="mch-snap-inner">
+        <span className="mch-snap-head">
+          <span>NEURAL MAP</span>
+          <span className="mch-snap-more">GRID →</span>
+        </span>
+        <span className="mch-minigraph" ref={wrapRef}>
+          <canvas ref={canvasRef} />
+        </span>
+        <span className="mch-snap-rows">
+          <span className="mch-snap-row">
+            <span className="mch-snap-label">{meta.nodes} notes</span>
+            <span className="mch-snap-val">{meta.links} links</span>
+          </span>
         </span>
       </span>
     </button>
