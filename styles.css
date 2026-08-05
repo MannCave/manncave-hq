@@ -6,6 +6,7 @@
 }
 
 .mch-root {
+  overflow-x: hidden;
   --mch-bg: #0f1115;
   --mch-surface: #171a21;
   --mch-raised: #1d2230;
@@ -26,7 +27,9 @@
     var(--mch-bg);
   color: var(--mch-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-  padding: 20px clamp(14px, 4vw, 36px) 48px;
+  padding: 20px clamp(14px, 4vw, 36px) calc(48px + env(safe-area-inset-bottom));
+  padding-left: max(clamp(14px, 4vw, 36px), env(safe-area-inset-left));
+  padding-right: max(clamp(14px, 4vw, 36px), env(safe-area-inset-right));
   box-sizing: border-box;
 }
 
@@ -147,6 +150,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 
@@ -297,6 +301,8 @@
 .mch-note:hover { background: var(--mch-raised); }
 
 .mch-note-title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -330,7 +336,8 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 170px);
-  min-height: 380px;
+  height: calc(100dvh - 170px);
+  min-height: 320px;
   background: var(--mch-surface);
   border: 1px solid var(--mch-line);
   border-radius: 14px;
@@ -469,11 +476,6 @@
 
 /* ---- mobile ---- */
 
-@media (max-width: 560px) {
-  .mch-root { padding: 14px 12px 40px; }
-  .mch-ai { height: calc(100vh - 230px); }
-  .mch-msg { max-width: 95%; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .mch-root * { transition: none !important; }
@@ -497,6 +499,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 16px 18px;
   border-radius: 14px;
   border: 1px solid var(--mch-line);
@@ -950,6 +953,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
@@ -970,6 +974,8 @@
 
 .mch-readouts {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 6px;
   gap: 16px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 9.5px;
@@ -1158,6 +1164,7 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
 }
 
 .mch-snap-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1297,6 +1304,12 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
   color: var(--mch-text);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 8px color-mix(in srgb, var(--mch-accent) 45%, transparent);
+}
+
+.mch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .mch-usage-table {
@@ -1567,16 +1580,102 @@ button.mch-snap:hover .mch-snap-more { opacity: 1; }
 
 .mch-theme-today .mch-stack { gap: 12px; }
 
-@media (max-width: 560px) {
-  .mch-hud-hero { grid-template-columns: 1fr; }
-  .mch-reactor { max-width: 190px; margin: 0 auto; }
-  .mch-snap-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 400px) {
-  .mch-sectors { grid-template-columns: 1fr; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .mch-spin, .mch-spin-rev, .mch-hud-pip, .mch-prompt, .mch-boot > * { animation: none !important; }
+}
+
+/* ============ Responsive: phone → tablet → desktop ============ */
+
+/* --- tablet / narrow desktop pane (iPad portrait, split view) --- */
+@media (max-width: 900px) {
+  .mch-hud-hero { grid-template-columns: minmax(130px, 170px) 1fr; }
+  .mch-snap-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .mch-ai { height: calc(100vh - 190px); height: calc(100dvh - 190px); }
+}
+
+/* --- phone --- */
+@media (max-width: 620px) {
+  .mch-root { padding: 14px 12px calc(40px + env(safe-area-inset-bottom)); }
+
+  /* stack the header; scroll the tab rail instead of wrapping it into 3 rows */
+  .mch-header { align-items: stretch; gap: 10px; margin-bottom: 16px; }
+  .mch-date { font-size: 21px; }
+  .mch-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 2px 12px;
+    scroll-snap-type: x proximity;
+  }
+  .mch-nav::-webkit-scrollbar { display: none; }
+  .mch-tab { flex: 0 0 auto; scroll-snap-align: start; }
+  .mch-nav {
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+  }
+
+  /* hero stacks: reactor above the sector grid */
+  .mch-hud-hero { grid-template-columns: 1fr; gap: 12px; }
+  .mch-reactor { max-width: 170px; margin: 0 auto; }
+  .mch-snap-grid { grid-template-columns: 1fr; }
+
+  /* card heads: title on its own line, controls beneath — never overlapping */
+  .mch-hud-card-head,
+  .mch-card-head { align-items: flex-start; row-gap: 8px; }
+  .mch-graph-tools { flex-wrap: wrap; }
+
+  /* banners stack so the wordmark and its buttons stop colliding */
+  .mch-banner { align-items: flex-start; row-gap: 10px; }
+  .mch-banner-right { width: 100%; justify-content: space-between; }
+
+  /* legend note drops to its own line rather than being squeezed */
+  .mch-legend-note { margin-left: 0; width: 100%; }
+
+  .mch-ai { height: calc(100vh - 210px); height: calc(100dvh - 210px); }
+  .mch-msg { max-width: 94%; }
+
+  .mch-sketch-modal { width: 100%; }
+  .mch-sketch-tools { gap: 10px; }
+
+  /* hero breathes less on a phone screen */
+  .mch-hud-hero { gap: 8px; }
+  .mch-theme-today .mch-stack { gap: 10px; }
+
+  /* tables scroll as a unit rather than crushing words onto 3 lines */
+  .mch-scroll-x .mch-usage-table { min-width: 420px; }
+  .mch-usage-table td, .mch-usage-table th { white-space: nowrap; }
+  .mch-usage-table td:nth-child(2) { white-space: normal; min-width: 200px; }
+
+  /* repo rows go two-line: name over meta, description dropped (no room) */
+  .mch-repo { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .mch-repo .mch-note-title { width: 100%; flex: none; }
+  .mch-repo-desc { display: none; }
+}
+
+/* --- small phone --- */
+@media (max-width: 360px) {
+  .mch-sectors { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 430px) {
+  .mch-hud-card { padding: 11px 12px; }
+  .mch-snap-hero b { font-size: 23px; }
+  .mch-usage-totals { letter-spacing: 0.1em; }
+  .mch-repo-meta { font-size: 9px; }
+}
+
+/* --- touch devices: comfortable hit targets (iPhone + iPad, any width) --- */
+@media (pointer: coarse) {
+  .mch-tab { padding: 9px 15px; }
+  .mch-chip { padding: 8px 13px; font-size: 12.5px; }
+  .mch-btn { padding: 11px 17px; }
+  .mch-note { padding: 11px 10px; }
+  .mch-sector { padding: 12px; }
+  .mch-sketch-tool { padding: 9px 13px; }
+  .mch-sketch-ink { width: 28px; height: 28px; }
+  /* hover-reveal affordances don't exist on touch — show them outright */
+  .mch-snap-more { opacity: 1; color: color-mix(in srgb, var(--mch-accent) 65%, var(--mch-muted)); }
 }
