@@ -359,6 +359,16 @@ export function getProvider(settings: HQSettings): AIProvider {
       "No NVIDIA API key set. Create one at build.nvidia.com and add it in Settings → MannCave HQ."
     );
   }
+  if (settings.provider === "deepseek") {
+    return new OpenAICompatProvider(
+      "https://api.deepseek.com",
+      settings.deepseekApiKey,
+      settings.deepseekModel || "deepseek-v4-flash",
+      "DeepSeek",
+      "see api-docs.deepseek.com",
+      "No DeepSeek API key set. Create one at platform.deepseek.com and add it in Settings → MannCave HQ."
+    );
+  }
   if (settings.provider === "ollama") {
     return new OllamaProvider(settings.ollamaUrl, settings.ollamaModel);
   }
